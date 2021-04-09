@@ -17,5 +17,9 @@ CovIDEA-BASE.root, CovCLD.root
 - Smearing track parameters
 ObsTrk is a class to generate resolution smeared track parameters according to the covariance matrix obtained from SolGridCov. It inherits from the class TrkUtil that contains some useful track manipulation methods.
 	A test program is provided: TestObsTrk.c
+
 - Vertex fitting 
-A class VertexFit is provided to find a common vertex and its error matrix given a list of track parameters and their covariance matrices. A test program is provided: TestVertex.c 
+A class VertexFit is provided to find a common vertex and its error matrix given a list of track parameters and their covariance matrices. A test program is provided: TestVertex.c
+
+- Track utilities
+A class TrkUtil is provided to help with common track related operations. It now includes the generation of the number of ionization clusters generated in a gas volume defined by two cylinders and two planes. A program to test the track length: TestTrLen.c and one to test the cluster generation: TestClCount.c are provided.  
