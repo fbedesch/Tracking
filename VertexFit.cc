@@ -7,133 +7,127 @@
 //
 // Constructors
 //
-// Empty
+//
+// Empty construction (to be used when adding tracks later with AddTrk() )
 VertexFit::VertexFit()
 {
 	fNtr = 0;
+	fRold = -1.0;
 	fVtxDone = kFALSE;
 	fVtxCst = kFALSE;
 	fxCst.ResizeTo(3);
-	fCovCst.ResizeTo(3,3);
+	fCovCst.ResizeTo(3, 3);
+	fCovCstInv.ResizeTo(3, 3);
 	fXv.ResizeTo(3);
-	fcovXv.ResizeTo(3,3);
+	fcovXv.ResizeTo(3, 3);
 }
-// Parameters and covariances
+//
+// Build from list of parameters and covariances
 VertexFit::VertexFit(Int_t Ntr, TVectorD** trkPar, TMatrixDSym** trkCov)
 {
 	fNtr = Ntr;
+	fRold = -1.0;
 	fVtxDone = kFALSE;
 	fVtxCst = kFALSE;
 	fxCst.ResizeTo(3);
-	fCovCst.ResizeTo(3,3);
+	fCovCst.ResizeTo(3, 3);
+	fCovCstInv.ResizeTo(3, 3);
 	fXv.ResizeTo(3);
-	fcovXv.ResizeTo(3,3);
+	fcovXv.ResizeTo(3, 3);
 	//
-	fPar = trkPar;
-	fCov = trkCov;
-	fChi2List.ResizeTo(Ntr);
+	for (Int_t i = 0; i < fNtr; i++)
+	{
+		TVectorD pr = *trkPar[i];
+		fPar.push_back(new TVectorD(pr));
+		TMatrixDSym cv = *trkCov[i];
+		fCov.push_back(new TMatrixDSym(cv));
+	}
+	fChi2List.ResizeTo(fNtr);
 	//
-	ffi = new Double_t[Ntr];				// Fit phases
-	fx0i = new TVectorD* [Ntr];			// Track expansion points
-	for (Int_t i = 0; i < Ntr; i++) fx0i[i] = new TVectorD(3);
-	fai = new TVectorD * [Ntr];			// dx/dphi
-	for (Int_t i = 0; i < Ntr; i++) fai[i] = new TVectorD(3);
-	fa2i = new Double_t[Ntr];				// a'Wa
-	fDi = new TMatrixDSym*[Ntr];		// W-WBW
-	for (Int_t i = 0; i < Ntr; i++) fDi[i] = new TMatrixDSym(3);
-	fWi = new TMatrixDSym * [Ntr];	// (ACA')^-1
-	for (Int_t i = 0; i < Ntr; i++) fWi[i] = new TMatrixDSym(3);
-	fWinvi = new TMatrixDSym * [Ntr];	// ACA'
-	for (Int_t i = 0; i < Ntr; i++) fWinvi[i] = new TMatrixDSym(3);
-	
 }
-// ObsTrk list
+//
+// Build from ObsTrk list of tracks
 VertexFit::VertexFit(Int_t Ntr, ObsTrk** track)
 {
 	fNtr = Ntr;
+	fRold = -1.0;
 	fVtxDone = kFALSE;
 	fVtxCst = kFALSE;
 	fxCst.ResizeTo(3);
-	fCovCst.ResizeTo(3,3);
+	fCovCst.ResizeTo(3, 3);
+	fCovCstInv.ResizeTo(3, 3);
 	fXv.ResizeTo(3);
-	fcovXv.ResizeTo(3,3);
+	fcovXv.ResizeTo(3, 3);
 	//
-	fPar = new TVectorD*[Ntr];
-	fCov = new TMatrixDSym*[Ntr];
-	fChi2List.ResizeTo(Ntr);
-	for (Int_t i = 0; i < Ntr; i++)
+	fChi2List.ResizeTo(fNtr);
+	for (Int_t i = 0; i < fNtr; i++)
 	{
-		fPar[i] = new TVectorD(track[i]->GetObsPar());
-		//cout << "fPar = " << endl; fPar[i]->Print();
-		fCov[i] = new TMatrixDSym(track[i]->GetCov());
-		//cout << "fCov = " << endl; fCov[i]->Print();
+		fPar.push_back(new TVectorD(track[i]->GetObsPar()));
+		fCov.push_back(new TMatrixDSym(track[i]->GetCov()));
 	}
-	//
-	ffi = new Double_t[Ntr];				// Fit phases
-	fx0i = new TVectorD * [Ntr];			// Track expansion points
-	for (Int_t i = 0; i < Ntr; i++) fx0i[i] = new TVectorD(3);
-	fai = new TVectorD * [Ntr];			// dx/dphi
-	for (Int_t i = 0; i < Ntr; i++) fai[i] = new TVectorD(3);
-	fa2i = new Double_t[Ntr];				// a'Wa
-	fDi = new TMatrixDSym * [Ntr];	// W-WBW
-	for (Int_t i = 0; i < Ntr; i++) fDi[i] = new TMatrixDSym(3);
-	fWi = new TMatrixDSym * [Ntr];	// (ACA')^-1
-	for (Int_t i = 0; i < Ntr; i++) fWi[i] = new TMatrixDSym(3);
-	fWinvi = new TMatrixDSym * [Ntr];	// ACA'
-	for (Int_t i = 0; i < Ntr; i++) fWinvi[i] = new TMatrixDSym(3);
-
-	//cout << "VertexFit constructor executed" << endl;
 }
 //
 // Destructor
+//
+void VertexFit::ResetWrkArrays()
+{
+	Int_t N = (Int_t)ffi.size();
+	for (Int_t i = 0; i < N; i++)
+	{
+		if (fx0i[i])  { fx0i[i]->Clear();		delete fx0i[i]; }
+		if (fai[i])   { fai[i]->Clear();			delete fai[i]; }
+		if (fDi[i])   { fDi[i]->Clear();			delete fDi[i]; }
+		if (fWi[i])   { fWi[i]->Clear();			delete fWi[i]; }
+		if (fWinvi[i]){ fWinvi[i]->Clear();     delete fWinvi[i]; }
+	}
+	fa2i.clear();
+	fx0i.clear();
+	fai.clear();
+	fDi.clear();
+	fWi.clear();
+	fWinvi.clear();
+}
 VertexFit::~VertexFit()
 {
-	fxCst.Clear();	
+	fxCst.Clear();		
 	fCovCst.Clear();
-	fXv.Clear();	
-	fcovXv.Clear();	
-	fChi2List.Clear();
+	fCovCstInv.Clear();
+	fXv.Clear();		
+	fcovXv.Clear();		
+	fChi2List.Clear();	
 	//
-	for (Int_t i= 0; i < fNtr; i++)
+	for (Int_t i = 0; i < fNtr; i++)
 	{
-		fPar[i]->Clear(); 
-		fCov[i]->Clear();
-		//
-		fx0i[i]->Clear(); delete fx0i[i];
-		fai[i]->Clear(); delete fai[i];
-		fDi[i]->Clear(); delete fDi[i];
-		fWi[i]->Clear(); delete fWi[i];
-		fWinvi[i]->Clear();	delete fWinvi[i];
+		fPar[i]->Clear();	delete fPar[i];
+		fCov[i]->Clear();	delete fCov[i];
 	}
+	fPar.clear();
+	fCov.clear();	
+	//
+	ResetWrkArrays();
+	ffi.clear();
 	fNtr = 0;
-	delete[] fPar;
-	delete[] fCov;
-	delete[] ffi;
-	delete[] fa2i;
-	delete[] fx0i;
-	delete[] fai;
-	delete[] fDi;
-	delete[] fWi;
-	delete[] fWinvi;
 }
 //
-Double_t VertexFit::FastRv1(TVectorD p1, TVectorD p2)
+Double_t VertexFit::FastRv(TVectorD p1, TVectorD p2)
 {
 	//
-	// Find radius of intersection between two tracks in the transverse plane
+	// Find radius of minimum distance between two tracks
 	//
 	// p = (D,phi, C, z0, ct)
 	//
 	// Define arrays
 	//
-	Double_t r1 = 1.0 / p1(2);
-	Double_t r2 = 1.0 / p2(2);
+	Double_t C1 = p1(2);
+	Double_t C2 = p2(2);
+	Double_t ph1 = p1(1);
+	Double_t ph2 = p2(1);
 	TVectorD x0 = Fill_x0(p1);
 	TVectorD y0 = Fill_x0(p2);
 	TVectorD n = Fill_a(p1, 0.0);
-	n *= r1;
+	n *= (2*C1);
 	TVectorD k = Fill_a(p2, 0.0);
-	k *= r2;
+	k *= (2*C2);
 	//
 	// Setup and solve linear system
 	//
@@ -147,124 +141,171 @@ Double_t VertexFit::FastRv1(TVectorD p1, TVectorD p2)
 	H(1, 0) = H(0, 1);
 	H(1, 1) = nn;
 	TVectorD c(2);
-	c(0) = 0; for (Int_t i = 0; i < 3; i++)c(0) +=  n(i) * (y0(i) - x0(i));
+	c(0) = 0; for (Int_t i = 0; i < 3; i++)c(0) += n(i) * (y0(i) - x0(i));
 	c(1) = 0; for (Int_t i = 0; i < 3; i++)c(1) += -k(i) * (y0(i) - x0(i));
 	TVectorD smin = (H * c);
 	smin *= 1.0 / discr;
 	//
 	TVectorD X = x0 + smin(0) * n;
 	TVectorD Y = y0 + smin(1) * k;
-	Double_t R1 = TMath::Sqrt(X(0) * X(0) + X(1) * X(1));
-	Double_t R2 = TMath::Sqrt(Y(0) * Y(0) + Y(1) * Y(1));
 	//
-	return 0.5*(R1+R2);
+	// Higher order corrections
+	X(0) += -C1 * smin(0) * smin(0) * TMath::Sin(ph1);
+	X(1) +=  C1 * smin(0) * smin(0) * TMath::Cos(ph1);
+	Y(0) += -C2 * smin(1) * smin(1) * TMath::Sin(ph2);
+	Y(1) +=  C2 * smin(1) * smin(1) * TMath::Cos(ph2);
+	//
+	TVectorD Xavg = 0.5 * (X + Y);
+	//
+	//
+	return TMath::Sqrt(Xavg(0)*Xavg(0)+Xavg(1)*Xavg(1));
 }
-Double_t VertexFit::FastRv(TVectorD p1, TVectorD p2)
+//
+// Starting radius determination
+Double_t VertexFit::StartRadius()
 {
 	//
-	// Find radius of minimum distance
-	//
-	// p = (D,phi, C)
-	//
-	// Solving matrix
-	TMatrixDSym H(2);
-	H(0, 0) = -TMath::Cos(p2(1));
-	H(0, 1) =  TMath::Cos(p1(1));
-	H(1, 0) = -TMath::Sin(p2(1));
-	H(1, 1) =  TMath::Sin(p1(1));
-	Double_t Det = TMath::Sin(p2(1) - p1(1));
-	H *= 1.0 / Det;
-	//
-	// Convergence parameters
-	Int_t Ntry = 0;
-	Int_t NtryMax = 100;
-	Double_t eps = 1000.;
-	Double_t epsMin = 1.0e-6;
-	//
-	// Vertex finding loop
-	//
-	TVectorD cterm(2);
-	cterm(0) = p1(0);
-	cterm(1) = p2(0);
-	TVectorD xv(2);
-	Double_t R = 1000.;
-	while (eps > epsMin)
+	// Maximum impact parameter
+	Double_t Rd = 0;
+	for (Int_t i = 0; i < fNtr; i++)
 	{
-		xv = H * cterm;
-		Ntry++;
-		if (Ntry > NtryMax)
-		{
-			cout << "FastRv: maximum number of iteration reached" << endl;
-			break;
-		}
-		Double_t Rnew = TMath::Sqrt(xv(0) * xv(0) + xv(1) * xv(1));
-		eps = Rnew - R;
-		R = Rnew;
-		cterm(0) = p1(2) * R * R;
-		cterm(1) = p2(2) * R * R;
+		TVectorD par = *fPar[i];
+		Double_t Dabs = TMath::Abs(par(0));
+		if (Dabs > Rd)Rd = Dabs;
 	}
+	//-----------------------------
+	//
+	// Find track pair with phi difference closest to pi/2
+	Int_t isel = 0; Int_t jsel = 0;		// selected track indices
+	Double_t dSinMax = 0.0;				// Max phi difference
+	for (Int_t i = 0; i < fNtr - 1; i++)
+	{
+		TVectorD pari = *fPar[i];
+		Double_t phi1 = pari(1);
+
+		for (Int_t j = i + 1; j < fNtr; j++)
+		{
+			TVectorD parj = *fPar[j];
+			Double_t phi2 = parj(1);
+			Double_t Sindphi = TMath::Abs(TMath::Sin(phi2 - phi1));
+			if (Sindphi > dSinMax)
+			{
+				isel = i; jsel = j;
+				dSinMax = Sindphi;
+			}
+		}
+	}
+	//
+	//------------------------------------------
+	//
+	// Find radius of minimum distrance between tracks
+	TVectorD p1 = *fPar[isel];
+	TVectorD p2 = *fPar[jsel];
+	Double_t R = FastRv(p1, p2);
+	//
+	R = 0.9 * R + 0.1 * Rd;		// Protect for overshoot
 	//
 	return R;
 }
-
-TMatrixDSym VertexFit::RegInv3(TMatrixDSym &Smat0)
+//
+// Regularized symmetric matrix inversion
+//
+TMatrixDSym VertexFit::RegInv(TMatrixDSym& Min)
 {
+	TMatrixDSym M = Min;				// Decouple from input
+	Int_t N = M.GetNrows();			// Matrix size
+	TMatrixDSym D(N); D.Zero();		// Normaliztion matrix
+	TMatrixDSym R(N);				// Normarized matrix
+	TMatrixDSym Rinv(N);				// Inverse of R
+	TMatrixDSym Minv(N);				// Inverse of M
 	//
-	// Regularized inversion of symmetric 3x3 matrix with positive diagonal elements
+	// Check for 0's and normalize
+	for (Int_t i = 0; i < N; i++)
+	{
+		if (M(i, i) != 0.0) D(i, i) = 1. / TMath::Sqrt(TMath::Abs(M(i, i)));
+		else D(i, i) = 1.0;
+	}
+	R = M.Similarity(D);
 	//
-	TMatrixDSym Smat = Smat0;
-	Int_t N = Smat.GetNrows();
-	if (N != 3)
+	// Recursive algorithms stops when N = 2
+	//
+	//****************
+	// case N = 2  ***
+	//****************
+	if (N == 2)
 	{
-		cout << "RegInv3 called with  matrix size != 3. Abort & return standard inversion." << endl;
-		return Smat.Invert();
-	}
-	TMatrixDSym D(N); D.Zero();
-	Bool_t dZero = kTRUE;	// No elements less or equal 0 on the diagonal
-	for (Int_t i = 0; i < N; i++) if (Smat(i, i) <= 0.0)dZero = kFALSE;
-	if (dZero)
-	{
-		for (Int_t i = 0; i < N; i++) D(i, i) = 1.0 / TMath::Sqrt(Smat(i, i));
-		TMatrixDSym RegMat = Smat.Similarity(D);
-		TMatrixDSym Q(2);
-		for (Int_t i = 0; i < 2; i++)
+		Double_t det = R(0, 0) * R(1, 1) - R(0, 1) * R(1, 0);
+		if (det == 0)
 		{
-			for (Int_t j = 0; j < 2; j++)Q(i, j) = RegMat(i, j);
+			std::cout << "VertexFit::RegInv: null determinant for N = 2" << std::endl;
+			Rinv.Zero();	// Return null matrix
 		}
-		Double_t Det = 1 - Q(0, 1)*Q(1, 0);
-		TMatrixDSym H(2);
-		H = Q;
-		H(0, 1) = -Q(0, 1);
-		H(1, 0) = -Q(1, 0);
-		TVectorD p(2);
-		p(0) = RegMat(0, 2);
-		p(1) = RegMat(1, 2);
-		Double_t pHp = H.Similarity(p);
-		Double_t h = pHp-Det;
-		//
-		TMatrixDSym pp(2); pp.Rank1Update(p);
-		TMatrixDSym F = (h*H) - pp.Similarity(H);
-		F *= 1.0 / Det;
-		TVectorD b = H*p;
-		TMatrixDSym InvReg(3);
-		for (Int_t i = 0; i < 2; i++)
+		else
 		{
-			InvReg(i, 2) = b(i);
-			InvReg(2, i) = b(i);
-			for (Int_t j = 0; j < 2; j++) InvReg(i, j) = F(i, j);
+			// invert matrix 
+			Rinv(0, 0) = R(1, 1);
+			Rinv(0, 1) = -R(0, 1);
+			Rinv(1, 0) = Rinv(0, 1);
+			Rinv(1, 1) = R(0, 0);
+			Rinv *= 1. / det;
 		}
-		InvReg(2, 2) = -Det;
-		//
-		InvReg *= 1.0 / h;
-		//
-		//
-		return InvReg.Similarity(D);
 	}
+	//****************
+	// case N > 2  ***
+	//****************
 	else
 	{
-		cout << "RegInv3: found negative elements in diagonal. Return standard inversion." << endl;
-		return Smat.Invert();
+		// Break up matrix
+		TMatrixDSym Q = R.GetSub(0, N - 2, 0, N - 2);	// Upper left 
+		TVectorD p(N - 1);
+		for (Int_t i = 0; i < N - 1; i++)p(i) = R(N - 1, i);
+		Double_t q = R(N - 1, N - 1);
+		//Invert pieces and re-assemble
+		TMatrixDSym Ainv(N - 1);
+		TMatrixDSym A(N - 1);
+		if (TMath::Abs(q) > 1.0e-15)
+		{
+			// Case |q| > 0
+			Ainv.Rank1Update(p, -1.0 / q);
+			Ainv += Q;
+			A = RegInv(Ainv);		// Recursive call
+			TMatrixDSub(Rinv, 0, N - 2, 0, N - 2) = A;
+			//
+			TVectorD b = (-1.0 / q) * (A * p);
+			for (Int_t i = 0; i < N - 1; i++)
+			{
+				Rinv(N - 1, i) = b(i);
+				Rinv(i, N - 1) = b(i);
+			}
+			//
+			Double_t pdotb = 0.;
+			for (Int_t i = 0; i < N - 1; i++)pdotb += p(i) * b(i);
+			Double_t c = (1.0 - pdotb) / q;
+			Rinv(N - 1, N - 1) = c;
+		}
+		else
+		{
+			// case q = 0
+			TMatrixDSym Qinv = RegInv(Q);		// Recursive call
+			Double_t a = Qinv.Similarity(p);
+			Double_t c = -1.0 / a;
+			Rinv(N - 1, N - 1) = c;
+			//
+			TVectorD b = (1.0 / a) * (Qinv * p);
+			for (Int_t i = 0; i < N - 1; i++)
+			{
+				Rinv(N - 1, i) = b(i);
+				Rinv(i, N - 1) = b(i);
+			}
+			//
+			A.Rank1Update(p, -1 / a);
+			A += Q;
+			A.Similarity(Qinv);
+			TMatrixDSub(Rinv, 0, N - 2, 0, N - 2) = A;
+		}
 	}
+	Minv = Rinv.Similarity(D);
+	return Minv;
 }
 //
 //
@@ -293,13 +334,13 @@ TMatrixD VertexFit::Fill_A(TVectorD par, Double_t phi)
 	A(1, 0) = TMath::Cos(p0);
 	A(2, 0) = 0.0;
 	// phi0
-	A(0, 1) = -D*TMath::Cos(p0) + (TMath::Cos(phi + p0) - TMath::Cos(p0)) / (2 * C);
-	A(1, 1) = -D*TMath::Sin(p0) + (TMath::Sin(phi + p0) - TMath::Sin(p0)) / (2 * C);
+	A(0, 1) = -D * TMath::Cos(p0) + (TMath::Cos(phi + p0) - TMath::Cos(p0)) / (2 * C);
+	A(1, 1) = -D * TMath::Sin(p0) + (TMath::Sin(phi + p0) - TMath::Sin(p0)) / (2 * C);
 	A(2, 1) = 0.0;
 	// C
-	A(0, 2) = -(TMath::Sin(phi + p0) - TMath::Sin(p0)) / (2 * C*C);
-	A(1, 2) = (TMath::Cos(phi + p0) - TMath::Cos(p0)) / (2 * C*C);
-	A(2, 2) = -ct*phi / (2 * C*C);
+	A(0, 2) = -(TMath::Sin(phi + p0) - TMath::Sin(p0)) / (2 * C * C);
+	A(1, 2) = (TMath::Cos(phi + p0) - TMath::Cos(p0)) / (2 * C * C);
+	A(2, 2) = -ct * phi / (2 * C * C);
 	// z0
 	A(0, 3) = 0.0;
 	A(1, 3) = 0.0;
@@ -352,8 +393,8 @@ TVectorD VertexFit::Fill_x0(TVectorD par)
 	Double_t z0 = par(3);
 	Double_t ct = par(4);
 	//
-	x0(0) = -D *TMath::Sin(p0);
-	x0(1) = D*TMath::Cos(p0);
+	x0(0) = -D * TMath::Sin(p0);
+	x0(1) = D * TMath::Cos(p0);
 	x0(2) = z0;
 	//
 	return x0;
@@ -377,76 +418,70 @@ TVectorD VertexFit::Fill_x(TVectorD par, Double_t phi)
 	TVectorD x0 = Fill_x0(par);
 	x(0) = x0(0) + (TMath::Sin(phi + p0) - TMath::Sin(p0)) / (2 * C);
 	x(1) = x0(1) - (TMath::Cos(phi + p0) - TMath::Cos(p0)) / (2 * C);
-	x(2) = x0(2) + ct*phi / (2 * C);
+	x(2) = x0(2) + ct * phi / (2 * C);
 	//
 	return x;
 }
 //
-void  VertexFit::VertexFinder()
+void VertexFit::UpdateTrkArrays(Int_t i)
 {
 	//
-	// Vertex fit (units are meters)
+	// Get track parameters and their covariance
+	TVectorD par = *fPar[i];
+	TMatrixDSym Cov = *fCov[i];
+	//
+	// Fill all track related work arrays arrays
+	Double_t fs = ffi[i];						// Get phase
+	TVectorD xs = Fill_x(par, fs);
+	fx0i.push_back(new TVectorD(xs));			// Start helix position
+	//
+	TMatrixD A = Fill_A(par, fs);				// A = dx/da = derivatives wrt track parameters
+	TMatrixDSym Winv = Cov.Similarity(A);		// W^-1 = A*C*A'
+	fWinvi.push_back(new TMatrixDSym(Winv));		// Store W^-1 matrix
+	//
+	TMatrixDSym W = RegInv(Winv);				// W = (A*C*A')^-1
+	fWi.push_back(new TMatrixDSym(W));			// Store W matrix
+	//
+	TVectorD a = Fill_a(par, fs);				// a = dx/ds = derivatives wrt phase
+	fai.push_back(new TVectorD(a));				// Store a
+	//
+	Double_t a2 = W.Similarity(a);
+	fa2i.push_back(a2);							// Store a2
+	//
+	// Build D matrix
+	TMatrixDSym B(3);
+	B.Rank1Update(a, -1. / a2);
+	B.Similarity(W);
+	TMatrixDSym Ds = W + B;						// D matrix
+	fDi.push_back(new TMatrixDSym(Ds));			// Store D matrix
+}
+//
+void  VertexFit::VertexFitter()
+{
+	//std::cout << "VertexFitter: just in" << std::endl;
+	if (fNtr < 2 && !fVtxCst){
+		std::cout << "VertexFit::VertexFitter - Method called with less than 2 tracks - Aborting " << std::endl;
+		std::exit(1);
+	}
+	//
+	// Vertex fit
 	//
 	// Initial variable definitions
 	TVectorD x(3);
 	TMatrixDSym covX(3);
-	TVectorD x0(3); for (Int_t v = 0; v < 3; v++)x0(v) = 100.; // set to large value
 	Double_t Chi2 = 0;
-	//
-	// Stored quantities
-	Double_t *fi = new Double_t[fNtr];				// Phases 
-	TVectorD **x0i = new TVectorD*[fNtr];			// Track expansion point
-	TVectorD **ai = new TVectorD*[fNtr];				// dx/dphi
-	Double_t *a2i = new Double_t[fNtr];				// a'Wa
-	TMatrixDSym **Di = new TMatrixDSym*[fNtr];		// W-WBW
-	TMatrixDSym **Wi = new TMatrixDSym*[fNtr];		// (ACA')^-1
-	TMatrixDSym **Winvi = new TMatrixDSym*[fNtr];	// ACA'
-	//
-	// vertex radius approximation
-	// Maximum impact parameter
-	Double_t Rd = 0;
-	for (Int_t i = 0; i < fNtr; i++)
-	{
-		//ObsTrk* t = tracks[i];
-		TVectorD par = *fPar[i];
-		Double_t Dabs = TMath::Abs(par(0));
-		if (Dabs > Rd)Rd = Dabs;
+	TVectorD x0 = fXv;	// If previous fit done
+	if (fRold < 0.0) {
+		// External constraint
+		if (fVtxCst) fRold = TMath::Sqrt(fxCst(0) * fxCst(0) + fxCst(1) * fxCst(1));
+		// No constraint
+		else for (Int_t i = 0; i < 3; i++)x0(i) = 1000.;	// Set to arbitrary large value 
 	}
 	//
-	// Find track pair with largest phi difference
-	Int_t isel=0; Int_t jsel=0; // selected track indices
-	Double_t dphiMax = 0.0;	// Max phi difference 
-	for (Int_t i = 0; i < fNtr-1; i++)
-	{
-		//ObsTrk* ti = tracks[i];
-		TVectorD pari = *fPar[i];
-		Double_t phi1 = pari(1);
-
-		for (Int_t j = i+1; j < fNtr; j++)
-		{
-			//ObsTrk* tj = tracks[j];
-			TVectorD parj = *fPar[j];
-			Double_t phi2 = parj(1);
-			Double_t dphi = TMath::Abs(phi2 - phi1);
-			if (dphi > TMath::Pi())dphi = TMath::TwoPi() - dphi;
-			if (dphi > dphiMax)
-			{
-				isel = i; jsel = j;
-				dphiMax = dphi;
-			}
-		}
-	}
+	// Starting vertex radius approximation
 	//
-	// 
-	//ObsTrk* t1 = tracks[isel];
-	TVectorD p1 = *fPar[isel];
-	//ObsTrk* t2 = tracks[jsel];
-	TVectorD p2 = *fPar[jsel];
-	Double_t R = FastRv1(p1, p2);
-	if (R > 1.0) R = Rd;
-	R = 0.9*R + 0.1*Rd;
-	//
-	//cout << "VertexFinder: fast R = " << R << endl;
+	Double_t R = fRold;						// Use previous fit if available
+	if (R < 0.0) R = StartRadius();			// Rough vertex estimate
 	//
 	// Iteration properties
 	//
@@ -455,199 +490,171 @@ void  VertexFit::VertexFinder()
 	Double_t eps = 1.0e-9; // vertex stability
 	Double_t epsi = 1000.;
 	//
+	// Iteration loop
 	while (epsi > eps && Ntry < TryMax)		// Iterate until found vertex is stable
 	{
+		// Initialize arrays
 		x.Zero();
 		TVectorD cterm(3); TMatrixDSym H(3); TMatrixDSym DW1D(3);
-		covX.Zero();	// Reset vertex covariance
+		covX.Zero();		// Reset vertex covariance
 		cterm.Zero();	// Reset constant term
 		H.Zero();		// Reset H matrix
 		DW1D.Zero();
-		// 
-		//cout << "VertexFinder: start loop on tracks" << endl;
+		//
+		// Reset work arrays
+		//
+		ResetWrkArrays();
+		//
+		// Start loop on tracks
+		//
 		for (Int_t i = 0; i < fNtr; i++)
 		{
-			// Get track helix parameters and their covariance matrix 
-			//ObsTrk *t = tracks[i];
+			// Get track helix parameters and their covariance matrix
 			TVectorD par = *fPar[i];
-			TMatrixDSym Cov = *fCov[i]; 
+			TMatrixDSym Cov = *fCov[i];
+			//
+			// For first iteration only
 			Double_t fs;
 			if (Ntry <= 0)	// Initialize all phases on first pass
 			{
 				Double_t D = par(0);
 				Double_t C = par(2);
-				Double_t arg = TMath::Max(1.0e-6, (R*R - D*D) / (1 + 2 * C*D));
-				fs = 2 * TMath::ASin(C*TMath::Sqrt(arg));
-				fi[i] = fs;
+				Double_t arg = TMath::Max(1.0e-6, (R * R - D * D) / (1 + 2 * C * D));
+				fs = 2 * TMath::ASin(C * TMath::Sqrt(arg));
+				ffi.push_back(fs);
 			}
 			//
-			// Starting values
+			// Update track related arrays
 			//
-			fs = fi[i];								// Get phase
-			//cout << "VertexFinder: phase fs set" << endl;
-			TVectorD xs = Fill_x(par, fs);
-			//cout << "VertexFinder: position xs set" << endl;
-			x0i[i] = new TVectorD(xs);				// Start helix position
-			//cout << "VertexFinder: position x0i stored" << endl;
-			// W matrix = (A*C*A')^-1; W^-1 = A*C*A'
-			TMatrixD A = Fill_A(par, fs);			// A = dx/da = derivatives wrt track parameters
-			//cout << "VertexFinder: derivatives A set" << endl;
-			TMatrixDSym Winv = Cov.Similarity(A);	// W^-1 = A*C*A'
-			Winvi[i] = new TMatrixDSym(Winv);		// Store W^-1 matrix
-			//cout << "VertexFinder: Winvi stored" << endl;
-			TMatrixDSym W = RegInv3(Winv);			// W = (A*C*A')^-1
-			Wi[i] = new TMatrixDSym(W);				// Store W matrix
-			//cout << "VertexFinder: Wi stored" << endl;
-			TVectorD a = Fill_a(par, fs);			// a = dx/ds = derivatives wrt phase
-			//cout << "VertexFinder: derivatives a set" << endl;
-			ai[i] = new TVectorD(a);				// Store a
-			//cout << "VertexFinder: derivatives a stored" << endl;
-			Double_t a2 = W.Similarity(a);
-			a2i[i] = a2;							// Store a2
-			// Build D matrix
-			TMatrixDSym B(3); 
-			B.Rank1Update(a, 1.0);
-			B *= -1. / a2;
-			B.Similarity(W);
-			TMatrixDSym Ds = W+B;					// D matrix
-			Di[i] = new TMatrixDSym(Ds);			// Store D matrix
-			//cout << "VertexFinder: matrix Di stored" << endl;
+			UpdateTrkArrays(i);
+			TMatrixDSym Ds = *fDi[i];
+			TMatrixDSym Winv = *fWinvi[i];
 			TMatrixDSym DsW1Ds = Winv.Similarity(Ds);	// Service matrix to calculate covX
-			DW1D += DsW1Ds;								
+			//
+			// Update global arrays
+			DW1D += DsW1Ds;
 			// Update hessian
 			H += Ds;
 			// update constant term
+			TVectorD xs = *fx0i[i];
 			cterm += Ds * xs;
 		}				// End loop on tracks
+		// Some additions in case of external constraints
+		if (fVtxCst) {
+			H += fCovCstInv;
+			cterm += fCovCstInv * fxCst;
+			DW1D += fCovCstInv;
+		}
 		//
 		// update vertex position
-		TMatrixDSym H1 = RegInv3(H);
-		x = H1*cterm;
-		//cout << "VertexFinder: x vertex set" << endl;
+		TMatrixDSym H1 = RegInv(H);
+		x = H1 * cterm;
+		//
 		// Update vertex covariance
 		covX = DW1D.Similarity(H1);
-		//cout << "VertexFinder: cov vertex set" << endl;
+		//
 		// Update phases and chi^2
 		Chi2 = 0.0;
 		for (Int_t i = 0; i < fNtr; i++)
 		{
-			TVectorD lambda = (*Di[i])*(*x0i[i] - x);
-			TMatrixDSym Wm1 = *Winvi[i];
+			TVectorD lambda = (*fDi[i]) * (*fx0i[i] - x);
+			TMatrixDSym Wm1 = *fWinvi[i];
 			fChi2List(i) = Wm1.Similarity(lambda);
 			Chi2 += fChi2List(i);
-			TVectorD a = *ai[i];
-			TVectorD b = (*Wi[i])*(x - *x0i[i]);
-			for (Int_t j = 0; j < 3; j++)fi[i] += a(j)*b(j) / a2i[i];
+			TVectorD a = *fai[i];
+			TVectorD b = (*fWi[i]) * (x - (*fx0i[i]));
+			for (Int_t j = 0; j < 3; j++)ffi[i] += a(j) * b(j) / fa2i[i];
 		}
-
-		//cout << "VertexFinder: end chi2 calculation" << endl;
+		// Add external constraint to Chi2
+		if (fVtxCst) Chi2 += fCovCstInv.Similarity(x - fxCst);
 		//
 		TVectorD dx = x - x0;
 		x0 = x;
 		// update vertex stability
-		TMatrixDSym Hess = RegInv3(covX);
+		TMatrixDSym Hess = RegInv(covX);
 		epsi = Hess.Similarity(dx);
 		Ntry++;
 		//
 		// Store result
 		//
-		fXv = x;			// Vertex position
+		fXv = x;				// Vertex position
 		fcovXv = covX;		// Vertex covariance
 		fChi2 = Chi2;		// Vertex fit Chi2
-		//
-		// Store intermediate data
-		//
-
-		//cout << "VertexFinder: before store intermediate data" << endl;
-		for (Int_t i = 0; i < fNtr; i++)
-		{
-			//cout << "VertexFinder: inside store intermediate data" << endl;
-			//cout << "i = " << i << ", fi[i] = " << fi[i] << endl;
-			//cout << "i = " << i << ", ffi[i] = " << ffi[i] << endl;
-			ffi[i] = fi[i];				// Fit phases
-			//cout << "VertexFinder: fi stored" << endl;
-			fx0i[i] = x0i[i];			// Track expansion points
-			//cout << "VertexFinder: x0i stored" << endl;
-			fai[i] = ai[i];				// dx/dphi
-			//cout << "VertexFinder: ai stored" << endl;
-			fa2i[i] = a2i[i];			// a'Wa
-			//cout << "VertexFinder: a2i stored" << endl;
-			fDi[i] = Di[i];				// W-WBW
-			//cout << "VertexFinder: Di stored" << endl;
-			fWi[i] = Wi[i];				// (ACA')^-1
-			//cout << "VertexFinder: Wi stored" << endl;
-			fWinvi[i] = Winvi[i];		// ACA'
-			//cout << "VertexFinder: Winvi stored" << endl;
-		}
-		//cout << "Iteration " << Ntry << " completed - Before cleanup" << endl;
-		//
-		// Cleanup
-		//
-		for (Int_t i = 0; i < fNtr; i++)
-		{
-			x0i[i]->Clear();
-			Winvi[i]->Clear();
-			Wi[i]->Clear();
-			ai[i]->Clear();
-			Di[i]->Clear();
-
-			delete x0i[i];
-			delete Winvi[i];
-			delete Wi[i];
-			delete ai[i];
-			delete Di[i];
-		}
-
-		//cout << "Iteration " << Ntry << " completed - After cleanup" << endl;
-	}
+	}		// end of iteration loop
 	//
-	fVtxDone = kTRUE;	// Set fitting completion flag
+	fVtxDone = kTRUE;		// Set fit completion flag
+	fRold = TMath::Sqrt(fXv(0)*fXv(0) + fXv(1)*fXv(1));	// Store fit radius
 	//
-	delete[] fi;		// Phases 
-	delete[] x0i;		// Track expansion point
-	delete[] ai;		// dx/dphi
-	delete[] a2i;		// a'Wa
-	delete[] Di;		// W-WBW
-	delete[] Wi;		// (ACA')^-1
-	delete[] Winvi;		// ACA'
 }
 //
+// Return fit vertex
 TVectorD VertexFit::GetVtx()
 {
-	//cout << "GetVtx: flag set to " << fVtxDone << endl;
-	if (!fVtxDone)VertexFinder();
+	if (!fVtxDone) VertexFitter();
 	return fXv;
 }
-
+//
+// Return fit vertex covariance
 TMatrixDSym VertexFit::GetVtxCov()
 {
-	if (!fVtxDone)VertexFinder();
+	if (!fVtxDone) VertexFitter();
 	return fcovXv;
 }
-
+//
+// Return fit vertex chi2
 Double_t VertexFit::GetVtxChi2()
 {
-	if (!fVtxDone)VertexFinder();
+	if (!fVtxDone) VertexFitter();
 	return fChi2;
 }
-
+//
+// Return array of chi2 contributions from each track
 TVectorD VertexFit::GetVtxChi2List()
 {
-	if (!fVtxDone)VertexFinder();
+	if (!fVtxDone) VertexFitter();
 	return fChi2List;
 }
 //
 // Handle tracks/constraints
 void VertexFit::AddVtxConstraint(TVectorD xv, TMatrixDSym cov)	// Add gaussian vertex constraint
 {
-	cout << "VertexFit::AddVtxConstraint: Not implemented yet" << endl;
+	//std::cout << "VertexFit::AddVtxConstraint: Not implemented yet" << std::endl;
+	fVtxCst = kTRUE;				// Vertex constraint flag
+	fxCst = xv;						// Constraint value
+	fCovCst = cov;					// Constraint covariance
+	fCovCstInv = cov;
+	fCovCstInv.Invert();				// Its inverse
+	//
+	// Set starting vertex as external constraint
+	fXv = fxCst;
+	fcovXv = fCovCst;
 }
 //
-void VertexFit::AddTrk(TVectorD par, TMatrixDSym Cov)			// Add track to input list
+// Adding tracks one by one
+void VertexFit::AddTrk(TVectorD *par, TMatrixDSym *Cov)			// Add track to input list
 {
-	cout << "VertexFit::AddTrk: Not implemented yet" << endl;
+	fNtr++;
+	fChi2List.ResizeTo(fNtr);	// Resize chi2 array
+	fPar.push_back(par);			// add new track
+	fCov.push_back(Cov);
+	//
+	// Reset previous vertex temp arrays
+	ResetWrkArrays();
+	ffi.clear();
+	fVtxDone = kFALSE;			// Reset vertex done flag
 }
-void VertexFit::RemoveTrk(Int_t iTrk)							// Remove iTrk track
+//
+// Removing tracks one by one
+void VertexFit::RemoveTrk(Int_t iTrk)	// Remove iTrk track
 {
-	cout << "VertexFit::RemoveTrk: Not implemented yet" << endl;
+	fNtr--;
+	fChi2List.Clear();
+	fChi2List.ResizeTo(fNtr);		// Resize chi2 array
+	fPar.erase(fPar.begin() + iTrk);		// Remove track
+	fCov.erase(fCov.begin() + iTrk);
+	//
+	// Reset previous vertex temp arrays
+	ResetWrkArrays();
+	ffi.clear();
+	fVtxDone = kFALSE;			// Reset vertex done flag
 }

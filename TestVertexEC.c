@@ -29,7 +29,7 @@ Double_t fchi2(Double_t *x, Double_t *p)
 //
 // Testing program
 //
-void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
+void TestVertexEC(Int_t Nvtx = 100, Int_t Ntr = 2)
 {
 	//
 	// Init geometry
@@ -41,12 +41,19 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 	//
 	Double_t ThDegMin = 40.0;
 	Double_t ThDegMax = 140.0;
-	Double_t Lmin = 0.020;
-	Double_t Lmax = 0.020;
+	Double_t Lmin = 0.002;
+	Double_t Lmax = 0.004;
 	Double_t dTheta = 0.20;
 	Double_t dPhi = 0.20;
 	Double_t Pmin = 0.5;
 	Double_t Pmax = 1.;
+	//
+	// Constraint
+	//
+	TMatrixDSym V(3); V.Zero();
+	V(0,0) = 1.e-5*1.e-5;	// 10 microns
+	V(1,1) = 1.e-6*1.e-6;	// 1 microns
+	V(2,2) = 5.e-4*5.e-4;	// 500 microns
 	//
 	// Histograms
 	Int_t Nbin = 100;
@@ -54,7 +61,8 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 	TH1D *hXpull = new TH1D("hXpull", "Pull X vertex component", Nbin, -10., 10.);
 	TH1D *hYpull = new TH1D("hYpull", "Pull Y vertex component", Nbin, -10., 10.);
 	TH1D *hZpull = new TH1D("hZpull", "Pull Z vertex component", Nbin, -10., 10.);
-	Double_t Ndof = 2.0 * Ntr - 3.0;
+	//Double_t Ndof = 2.0 * Ntr - 3.0;
+	Double_t Ndof = 2.0 * Ntr;
 	TH1D *hChi2 = new TH1D("hChi2", "Vertex #chi^{2}", 100, 0., 5 * Ndof);
 	TF1 *fch = new TF1("fch", fchi2, 0., 5 * Ndof, 2);
 	fch->SetParameter(0, Ndof);
@@ -82,10 +90,14 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 		Double_t Lvtx = Lmin + rnL * (Lmax - Lmin);
 		//
 		TVector3 x;
-		Double_t zz0 = 0.0;
-		x(0) = Lvtx * TMath::Sin(Th)*TMath::Cos(Ph);
-		x(1) = Lvtx * TMath::Sin(Th)*TMath::Sin(Ph);
-		x(2) = Lvtx * TMath::Cos(Th) + zz0;
+		Double_t zz0 = 0.01;
+		TVectorD xc(3);
+		xc(0) = Lvtx * TMath::Sin(Th)*TMath::Cos(Ph);
+		x(0) = gRandom->Gaus(xc(0), TMath::Sqrt(V(0,0)));
+		xc(1) = Lvtx * TMath::Sin(Th)*TMath::Sin(Ph);
+		x(1) = gRandom->Gaus(xc(1), TMath::Sqrt(V(1,1)));
+		xc(2) = Lvtx * TMath::Cos(Th) + zz0;
+		x(2) = gRandom->Gaus(xc(2), TMath::Sqrt(V(2,2)));
 		//
 		if(n%5000 == 0)cout << "Event # " << n << ", Rvertex = " << sqrt(x(0) * x(0) + x(1) * x(1)) << endl;
 		//cout << "True vertex: x = " << x(0) << ", y = " << x(1) << ", z = " << x(2) << endl;
@@ -128,14 +140,14 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 		//********************************************
 		// Option 1
 		//std::cout << "TestVertex: before constructor" << std::endl;
-		/*
+		
 		VertexFit* Vtx = new VertexFit(Ntr, tracks);
 		//std::cout << "TestVertex: after constructor" << std::endl;
+		Vtx->AddVtxConstraint(xc, V);
 		TVectorD xvtx = Vtx->GetVtx();
 		//std::cout << "TestVertex: after GetVtx()" << std::endl;
 		TMatrixDSym covX = Vtx->GetVtxCov();
 		Double_t Chi2 = Vtx->GetVtxChi2();
-		*/
 		//
 		// Option 2
 		/*
@@ -200,7 +212,7 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 		// Option 4 
 		// Track removal
 		// Remove two random tracks
-
+		/*
 		TVectorD** pr = new TVectorD *[Ntr];
 		TMatrixDSym** cv = new TMatrixDSym *[Ntr];
 		for (Int_t i = 0; i < Ntr; i++)
@@ -228,6 +240,7 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 		//std::cout << "TestVertex: updated fit completed" << std::endl;
 		TMatrixDSym covX = Vtx->GetVtxCov();
 		Double_t Chi2 = Vtx->GetVtxChi2();
+		*/
 		delete Vtx;	// Cleanup
 		//std::cout << "TestVertex: after delete Vtx" << std::endl;
 		//
@@ -301,17 +314,17 @@ void TestVertex(Int_t Nvtx = 100, Int_t Ntr = 2)
 		//
 		//std::cout << "TestVertex: before final cleanup" << std::endl;
 		for (Int_t i = 0; i < Ntr; i++) delete tracks[i];
-		
+		/*
 		for (Int_t i = 0; i < Ntr; i++) {
 			pr[i]->Clear(); delete pr[i];
 		}
 		for (Int_t i = 0; i < Ntr; i++) {
 			cv[i]->Clear(); delete cv[i];
 		}
-		
+		*/
 		delete[] tracks;
-		delete[] pr; 
-		delete[] cv; 
+		//delete[] pr; 
+		//delete[] cv; 
 		delete[] ppa;
 		delete[] tha;
 		delete[] pha;
