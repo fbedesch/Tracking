@@ -3,10 +3,13 @@
 #include <TVectorD.h>
 #include <TVector3.h>
 #include <TH2.h>
+#include <TF1.h>
 #include <TGraph.h>
 #include <TLine.h>
 #include <TRandom.h>
 #include <TCanvas.h>
+#include <TStyle.h>
+#include <TLegend.h>
 #include "TrkUtil.h"
 
 
@@ -101,9 +104,11 @@ void TestClCount(Int_t Nev = 1000, Double_t ang = 90., Int_t Opt=0)
 	//
 	// graph K/pi separation
 	//
-	const Int_t Nint = 22;
-	Double_t pmom[Nint] = {0.2, 0.3, 0.4, 0.5, 0.75, 0.9, 1.0, 1.1, 1.3,1.5, 
-		1.7, 2.0, 5.0, 7.5, 10., 20., 50., 60., 70., 80., 90.,  100.};
+	const Int_t Nint = 501;
+	Double_t pmom[Nint];
+	Double_t pmn = 0.2; Double_t pmx = 100.;
+	Double_t stp = (TMath::Log(pmx) - TMath::Log(pmn)) / (Double_t)(Nint - 1);
+	for (Int_t i = 0; i < Nint; i++)pmom[i] = TMath::Exp(i * stp + TMath::Log(pmn));
 	Double_t SigDiff[Nint];
 	for (Int_t i = 0; i < Nint; i++)
 	{
@@ -130,13 +135,21 @@ void TestClCount(Int_t Nev = 1000, Double_t ang = 90., Int_t Opt=0)
 	TCanvas *cnv = new TCanvas("cnv", title, 50, 50, 800, 500);
 	cnv->Divide(2, 1);
 	cnv->cd(1);
-	//h_kaon->SetMarkerStyle(kFullDotSmall);
+	gStyle->SetOptStat(0);
 	h_kaon->SetMarkerColor(kRed);
+	h_kaon->SetLineColor(kRed);
 	h_kaon->GetXaxis()->SetTitle("Momentum (GeV)");
 	h_kaon->Draw();
-	//h_pion->SetMarkerStyle(kFullDotSmall);
 	h_pion->SetMarkerColor(kBlack);
+	h_pion->SetLineColor(kBlack);
 	h_pion->Draw("SAME");
+	//
+	TLegend* lg = new TLegend(0.1, 0.9, 0.3, 0.70);
+	TString LgTitle = "Particle type:";
+	lg->SetHeader(LgTitle);
+	lg->AddEntry(h_pion, "#pi", "L");
+	lg->AddEntry(h_kaon, "#color[2]{K}", "L");
+	lg->Draw();
 	cnv->cd(2);
 	gPad->SetLogx();
 	TGraph *gr = new TGraph(Nint, pmom, SigDiff);
@@ -146,7 +159,15 @@ void TestClCount(Int_t Nev = 1000, Double_t ang = 90., Int_t Opt=0)
 	gr->SetTitle("K/#pi separation in nr. of #sigma");
 	gr->GetXaxis()->SetTitle("Momentum (GeV)");
 	gr->SetLineColor(kBlue);
-	gr->Draw("APL");
+	gr->Draw("APC");
 	TLine *line = new TLine(0.0, 3.0, 100., 3.0);
 	line->Draw("SAME");
+	//
+	TCanvas* cnvf = new TCanvas("cnvf", "Interpolating function", 100, 100, 800, 500);
+	cnvf->Divide(1, 1);
+	cnvf->cd(1);
+	gPad->SetLogx();
+	TF1* f_ncl = new TF1("f_ncl", TU, &TrkUtil::funcNcl, 0.5, 1000., 1);
+	f_ncl->SetNpx(500);
+	f_ncl->Draw();
 }
