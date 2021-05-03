@@ -24,7 +24,7 @@ protected:
 	//
 	// Service routines
 	//
-	void SetBfield(Double_t Bz) { fBz = Bz; }
+	void SetB(Double_t Bz) { fBz = Bz; }
 	TVectorD XPtoPar(TVector3 x, TVector3 p, Double_t Q);
 	TVector3 ParToP(TVectorD Par);
 	//
@@ -70,6 +70,7 @@ public:
 	//
 	// Cluster counting in gas
 	//
+	void SetBfield(Double_t Bz) { fBz = Bz; }
 	// Define gas volume (units = meters) 
 	void SetDchBoundaries(Double_t Rmin, Double_t Rmax, Double_t Zmin, Double_t Zmax);
 	// Gas mixture selection
