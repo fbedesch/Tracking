@@ -15,6 +15,7 @@ SolGeom::SolGeom()
 	SolGeoInit();
 	for (Int_t i = 0; i < fNdet; i++)fEnable[i] = kTRUE;	// default is everything enabled
 	SolGeoFill();
+	SetMinBoundaries();
 	TString OldLab = " "; Int_t k = 0;
 	for (Int_t i = 0; i < fNlay; i++)
 	{
@@ -38,7 +39,8 @@ SolGeom::SolGeom(Bool_t *OK)
 {
 	SolGeoInit();
 	for (Int_t i = 0; i < fNdet; i++)fEnable[i] = OK[i];	// User defined list
-	SolGeoFill();
+	SolGeoFill(); 
+	SetMinBoundaries();
 	TString OldLab = " "; Int_t k = 0;
 	for (Int_t i = 0; i < fNlay; i++)
 	{
@@ -61,6 +63,7 @@ SolGeom::SolGeom(char* fname)
 	SolGeoInit();
 	for (Int_t i = 0; i < fNdet; i++)fEnable[i] = kTRUE;	// default is everything enabled
 	GeoRead(fname);
+	SetMinBoundaries();
 	TString OldLab = " "; Int_t k = 0;
 	for (Int_t i = 0; i < fNlay; i++)
 	{
@@ -459,6 +462,25 @@ void SolGeom::SolGeoFill()
 	}
 
 	cout << "Geometry created with " << fNlay << "/" << fNm << " layers" << endl;
+}
+//
+// Get inner boundaries
+//
+void SolGeom::SetMinBoundaries()
+{
+	// Get radius of first barrel measurement layer
+	fRmin = 1000000.0;
+	fZminPos = 1000000.0;
+	fZminNeg = -1000000.0;
+	for (Int_t i = 0; i < fNlay; i++){
+		if (ftyLay[i] == 1) {						// Cylinders
+			if (frPos[i] < fRmin) fRmin = frPos[i];
+		}
+		if (ftyLay[i] == 2) {						// Disks
+			if (frPos[i] > 0.0 && frPos[i] < fZminPos) fZminPos = frPos[i];	// Positive direction
+			if (frPos[i] < 0.0 && frPos[i] > fZminNeg) fZminNeg = frPos[i];	// Negative direction
+		}
+	}
 }
 //
 // Print geometry

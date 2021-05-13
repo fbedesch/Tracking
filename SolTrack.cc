@@ -13,33 +13,24 @@
 // Constructors
 SolTrack::SolTrack(Double_t *x, Double_t *p, SolGeom *G)
 {
-	fG = G;
-	// Store momentum
+	// Set B field
+	fG = G;					// Store geometry
+	Double_t B = G->B();
+	SetB(B);
+	// Store momentum and position
 	fp[0] = p[0]; fp[1] = p[1]; fp[2] = p[2];
-	Double_t px = p[0]; Double_t py = p[1]; Double_t pz = p[2];
 	fx[0] = x[0]; fx[1] = x[1]; fx[2] = x[2];
-	Double_t xx = x[0]; Double_t yy = x[1]; Double_t zz = x[2];
-	// Store parameters
-	Double_t pt = TMath::Sqrt(px*px + py*py);
+	// Get generated parameters
+	TVector3 xv(fx);
+	TVector3 pv(fp);
 	Double_t Charge = 1.0;						// Don't worry about charge for now
-	Double_t a = -Charge*G->B()*0.2998;			// Normalized speed of light	
-	Double_t C = a / (2 * pt);					// pt in GeV, B in Tesla, C in meters
-	Double_t r2 = xx*xx + yy*yy;
-	Double_t cross = xx*py - yy*px;
-	Double_t T = TMath::Sqrt(pt*pt - 2 * a*cross + a*a*r2);
-	Double_t phi0 = TMath::ATan2((py - a*xx) / T, (px + a*yy) / T);
-	Double_t D;
-	if (pt < 10.0) D = (T - pt) / a;
-	else D = (-2 * cross + a*r2) / (T + pt);
-	Double_t B = C*TMath::Sqrt((r2 - D*D) / (1 + 2 * C*D));
-	Double_t st = TMath::ASin(B) / C;
-	Double_t ct = pz / pt;
-	Double_t z0 = zz - ct*st;
-	fpar[0] = D;
-	fpar[1] = phi0;
-	fpar[2] = C;
-	fpar[3] = z0;
-	fpar[4] = ct;
+	TVectorD gPar = XPtoPar(xv, pv, Charge);
+	// Store parameters
+	fpar[0] = gPar(0);
+	fpar[1] = gPar(1);
+	fpar[2] = gPar(2);
+	fpar[3] = gPar(3);
+	fpar[4] = gPar(4);
 	//cout << "SolTrack:: C = " << C << ", fpar[2] = " << fpar[2] << endl;
 	//
 	// Init covariances
@@ -48,33 +39,22 @@ SolTrack::SolTrack(Double_t *x, Double_t *p, SolGeom *G)
 }
 SolTrack::SolTrack(TVector3 x, TVector3 p, SolGeom* G)
 {
-	fG = G;
+	// set B field
+	fG = G;					// Store geometry
+	Double_t B = G->B();
+	SetB(B);
 	// Store momentum
 	fp[0] = p(0); fp[1] = p(1); fp[2] = p(2);
-	Double_t px = p(0); Double_t py = p(1); Double_t pz = p(2);
 	fx[0] = x(0); fx[1] = x(1); fx[2] = x(2);
-	Double_t xx = x(0); Double_t yy = x(1); Double_t zz = x(2);
-	// Store parameters
-	Double_t pt = TMath::Sqrt(px * px + py * py);
+	// Get generated parameters
 	Double_t Charge = 1.0;						// Don't worry about charge for now
-	Double_t a = -Charge * G->B() * 0.2998;			// Normalized speed of light	
-	Double_t C = a / (2 * pt);					// pt in GeV, B in Tesla, C in meters
-	Double_t r2 = xx * xx + yy * yy;
-	Double_t cross = xx * py - yy * px;
-	Double_t T = TMath::Sqrt(pt * pt - 2 * a * cross + a * a * r2);
-	Double_t phi0 = TMath::ATan2((py - a * xx) / T, (px + a * yy) / T);
-	Double_t D;
-	if (pt < 10.0) D = (T - pt) / a;
-	else D = (-2 * cross + a * r2) / (T + pt);
-	Double_t B = C * TMath::Sqrt((r2 - D * D) / (1 + 2 * C * D));
-	Double_t st = TMath::ASin(B) / C;
-	Double_t ct = pz / pt;
-	Double_t z0 = zz - ct * st;
-	fpar[0] = D;
-	fpar[1] = phi0;
-	fpar[2] = C;
-	fpar[3] = z0;
-	fpar[4] = ct;
+	TVectorD gPar = XPtoPar(x, p, Charge);
+	// Store parameters
+	fpar[0] = gPar(0);
+	fpar[1] = gPar(1);
+	fpar[2] = gPar(2);
+	fpar[3] = gPar(3);
+	fpar[4] = gPar(4);
 	//cout << "SolTrack:: C = " << C << ", fpar[2] = " << fpar[2] << endl;
 	//
 	// Init covariances
@@ -92,7 +72,7 @@ SolTrack::SolTrack(Double_t D, Double_t phi0, Double_t C, Double_t z0, Double_t 
 	fpar[3] = z0;
 	fpar[4] = ct;
 	// Store momentum
-	Double_t pt = G->B()*0.2998 / TMath::Abs(2 * C);
+	Double_t pt = G->B()*TrkUtil::cSpeed() / TMath::Abs(2 * C);
 	Double_t px = pt*TMath::Cos(phi0);
 	Double_t py = pt*TMath::Sin(phi0);
 	Double_t pz = pt*ct;
@@ -126,13 +106,14 @@ Bool_t SolTrack::HitLayer(Int_t il, Double_t &R, Double_t &phi, Double_t &zz)
 	//if (fG->lTyp(il) == 2)cout << "Rmin = " << fG->lxMin(il) << ", Rmax = " << fG->lxMax(il);
 	//
 	R = 0; phi = 0; zz = 0;
+	Double_t Rmin = TMath::Sqrt(fx[0] * fx[0] + fx[1] * fx[1]); // Smallest track radius
 	//
 	Bool_t val = kFALSE;
 	if (fG->lTyp(il) == 1)			// Cylinder: layer at constant R
 	{
 		R = fG->lPos(il);
 		Double_t argph = (Ci*R + (1 + Ci*Di)*Di / R) / (1. + 2.*Ci*Di);
-		if (TMath::Abs(argph) < 1.0)
+		if (TMath::Abs(argph) < 1.0 && R > Rmin)
 		{
 			Double_t argz = Ci*TMath::Sqrt((R*R - Di*Di) / (1 + 2 * Ci*Di));
 			if (TMath::Abs(argz) < 1.0)
@@ -151,7 +132,7 @@ Bool_t SolTrack::HitLayer(Int_t il, Double_t &R, Double_t &phi, Double_t &zz)
 	{
 		zz = fG->lPos(il);
 		Double_t arg = Ci*(zz - z0i) / cti;
-		if (TMath::Abs(arg) < 1.0 && (zz - z0i) / cti > 0)
+		if (TMath::Abs(arg) < 1.0 && (zz - z0i) / cti > 0 && TMath::Abs(fx[2]) < TMath::Abs(zz))
 		{
 			R = TMath::Sqrt(Di*Di + (1. + 2.*Ci*Di)*pow(TMath::Sin(arg), 2) / (Ci*Ci));
 			//cout << ", R of hit = " << R << endl;

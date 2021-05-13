@@ -6,13 +6,15 @@
 #include <TVector3.h>
 #include <TMatrixDSym.h>
 #include "SolGeom.h"
+#include "TrkUtil.h"
 #include <TGraph.h>
 //
 //
 // Class to store track information
 // Assumes that the geometry has been initialized
 //
-class SolTrack{
+class SolTrack: public TrkUtil
+{
 	// 
 	// Track handling class
 	// Assume tracks originate from (0,0) for the time being

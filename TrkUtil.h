@@ -53,7 +53,7 @@ public:
 	{
 		Double_t c = 2.99792458e8;	// speed of light m/sec
 		//return TMath::C()*1.0e-9;	// Incompatible with root5
-		return c*1.0e-9; 		// Reduced speed of light	
+		return c*1.0e-9; 			// Reduced speed of light	
 	}
 	//
 	// Service routines

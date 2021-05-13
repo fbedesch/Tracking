@@ -37,6 +37,10 @@ private:
 	Bool_t   *fflLay;	// measurement flag = T, scattering only = F
 	TCanvas  *fcnv;		// pointer to canvas with geo drawing
 	//
+	Double_t fRmin;		// Radius of first measurement layer
+	Double_t fZminPos;	// Z of first disk in positive direction
+	Double_t fZminNeg;	// Z of first disk in positive direction
+	//
 	const Int_t fNdet = 10;  // Max number of tracking/passive detectors 
 	Bool_t *fEnable; 	// Array of enabled detector
 	// 0: beam pipe, 1: Inner VTX pixels, 2: Outer VTX silicon, 3: Drift chamber
@@ -49,6 +53,7 @@ private:
 	void SolGeoInit();
 	void SolGeoFill();
 	void GeoRead(char* fname);
+	void SetMinBoundaries();
 public:
 	//
 	// Constructors
@@ -78,6 +83,10 @@ public:
 	Double_t lSgL(Int_t nlayer)		{ return fsgLayL[nlayer]; }
 	Bool_t   isMeasure(Int_t nlayer)	{ return fflLay[nlayer]; }
 	TCanvas *cnv()					{ return fcnv; }
+	//
+	Double_t GetRmin() { return fRmin; }
+	Double_t GetZminPos() { return fZminPos; }
+	Double_t GetZminNeg() { return fZminNeg; }
 	//
 	// I/O functions
 	void GeoPrint(char * fname);

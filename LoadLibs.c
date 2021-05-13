@@ -12,6 +12,6 @@ gROOT->ProcessLine(".L SolGridCov.cc+");
 gROOT->ProcessLine(".L TrkUtil.cc+");
 gROOT->ProcessLine(".L ObsTrk.cc+");
 gROOT->ProcessLine(".L VertexFit.cc+");
-gROOT->ProcessLine(".include $PYTHIA8/include");
-gROOT->ProcessLine(".L $PYTHIA8/lib/libpythia8.so");
+//gROOT->ProcessLine(".include $PYTHIA8/include");
+//gROOT->ProcessLine(".L $PYTHIA8/lib/libpythia8.so");
 }
