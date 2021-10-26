@@ -62,11 +62,25 @@ public:
 	static TVector3 ParToX(TVectorD Par);				// position of minimum distance from z axis
 	static TVector3 ParToP(TVectorD Par, Double_t Bz);	// Get Momentum from track parameters
 	static Double_t ParToQ(TVectorD Par);				// Get track charge
+	static void LineDistance(TVector3 x0, TVector3 y0, TVector3 dirx, TVector3 diry, Double_t &sx, Double_t &sy, Double_t &distance);
+	//
+	// Smear with given covariance matrix
+	//
+	static TVectorD CovSmear(TVectorD x, TMatrixDSym C);
 	//
 	// Conversion from meters to mm
 	//
 	static TVectorD ParToMm(TVectorD Par);			// Parameter conversion
 	static TMatrixDSym CovToMm(TMatrixDSym Cov);	// Covariance conversion
+	//
+	// Inside cylindrical volume
+	//
+	static Bool_t IsInside(TVector3 x, Double_t Rout, Double_t Zmin, Double_t Zmax)
+	{
+		Bool_t Is = kFALSE;
+		if (x.Pt() <= Rout && x.z() >= Zmin && x.z() <= Zmax)Is = kTRUE;
+		return Is;
+	}
 	//
 	// Cluster counting in gas
 	//

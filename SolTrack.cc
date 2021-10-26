@@ -87,8 +87,8 @@ SolTrack::SolTrack(Double_t D, Double_t phi0, Double_t C, Double_t z0, Double_t 
 // Destructor
 SolTrack::~SolTrack()
 {
-	delete[] & fp;
-	delete[] & fpar;
+	//delete[] & fp;
+	//delete[] & fpar;
 	fCov.Clear();
 }
 //
@@ -342,10 +342,12 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	{
 		Int_t i = ih[ii];					// Get true layer number
 		Double_t B = C()*TMath::Sqrt((rh[ii] * rh[ii] - D()*D()) / (1 + 2 * C()*D()));
+		//
 		Double_t pxi = px0*(1-2*B*B)-2*py0*B*TMath::Sqrt(1-B*B);		// Momentum at scattering layer
 		Double_t pyi = py0*(1-2*B*B)+2*px0*B*TMath::Sqrt(1-B*B);
 		Double_t pzi = pz0;
 		Double_t ArgRp = (rh[ii]*C() + (1 + C() * D())*D() / rh[ii]) / (1 + 2 * C()*D());
+		//
 		Double_t phi = phi0() + TMath::ASin(ArgRp);
 		Double_t nx = TMath::Cos(phi);		// Barrel layer normal
 		Double_t ny = TMath::Sin(phi);
@@ -364,9 +366,12 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 		//
 		for (Int_t kk = 0; kk < ii; kk++)	// Fill distances between layers
 		{
-			//dik(ii, kk) = TMath::Sqrt(pow(rh[ii] - rh[kk], 2) + pow(zh[ii] - zh[kk], 2));
 			Double_t Ci = C();
-			dik(ii, kk) = (TMath::ASin(Ci*rh[ii])-TMath::ASin(Ci*rh[kk]))/(Ci*snt);
+			Double_t Di = D();
+			//
+			//dik(ii, kk) = (TMath::ASin(Ci*rh[ii])-TMath::ASin(Ci*rh[kk]))/(Ci*snt);  // Approximation for small D
+			dik(ii, kk) = (TMath::ASin(Ci*TMath::Sqrt((rh[ii]*rh[ii]-Di*Di)/(1.+2*Ci*Di)))-
+				TMath::ASin(Ci * TMath::Sqrt((rh[kk] * rh[kk] - Di * Di) / (1. + 2 * Ci * Di)))) /(Ci*snt);
 			dik(kk, ii) = dik(ii, kk);
 		}
 		//
@@ -406,24 +411,29 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 			Double_t Ri    = rh[ii];
 			Double_t ArgRp = (Ri*Ci + (1 + Ci * Di)*Di / Ri) / (1 + 2 * Ci*Di);
 			Double_t ArgRz = Ci * TMath::Sqrt((Ri*Ri - Di * Di) / (1 + 2 * Ci*Di));
+			//
 			TVectorD dRphi(5); dRphi.Zero();		// R-phi derivatives @ const. R
 			TVectorD dRz(5); dRz.Zero();			// z     derivatives @ const. R
 			//
 			// Derivative overflow protection
 			Double_t dMin = 0.8;
-			dRphi(0) = (1 - 2 * Ci*Ci*Ri*Ri) / 
-				TMath::Max(dMin,TMath::Sqrt(1 - ArgRp * ArgRp));	// D derivative
-			dRphi(1) = Ri;														// phi0 derivative
-			dRphi(2) = Ri * Ri / 
-				TMath::Max(dMin,TMath::Sqrt(1 - ArgRp * ArgRp));				// C derivative
+			Double_t den = TMath::Max(dMin, TMath::Sqrt(1 - ArgRp * ArgRp));
+			Double_t Op2CD = 1. + 2 * Ci * Di;
+			dRphi(0) = (1. - 2 * (Ci * Ci * Ri * Ri + Ci * Di * (1. + Ci * Di)) / (Op2CD * Op2CD)) / den;	// D derivative
+			dRphi(1) = Ri;												// phi0 derivative
+			dRphi(2) = ((Ri * Ri - Di * Di) / (Op2CD * Op2CD)) / den;	// C derivative
 			dRphi(3) = 0.0;												// z0 derivative
 			dRphi(4) = 0.0;												// cot(theta) derivative
 			//
-			dRz(0) = -cti * Di / 
-				(Ri*TMath::Max(dMin,TMath::Sqrt(1 - Ci * Ci*Ri*Ri)));	// D
+			//
+			//dRz(0) = -cti * Di / 
+			//	(Ri*TMath::Max(dMin,TMath::Sqrt(1 - Ci * Ci*Ri*Ri)));	// D
+			Double_t denz = TMath::Max(dMin, TMath::Sqrt(1 - ArgRz * ArgRz));
+			dRz(0) = -(cti * Ci *(Di+Ci*(Ri*Ri+Di*Di))/(Op2CD*Op2CD))/(ArgRz*denz);	// D
 			dRz(1) = 0.0;												// Phi0
-			dRz(2) = cti * (Ri*Ci / TMath::Sqrt(1-Ri*Ri*Ci*Ci) -		// C 
-				TMath::ASin(Ri*Ci)) / (Ci*Ci);
+			//dRz(2) = cti * (Ri*Ci / TMath::Sqrt(1-Ri*Ri*Ci*Ci) -		// C 
+			//	TMath::ASin(Ri*Ci)) / (Ci*Ci);						
+			dRz(2) = (cti / (Ci * Ci))*(ArgRz*(1+Ci*Di)/(denz*Op2CD)-TMath::ASin(ArgRz));// C
 			dRz(3) = 1.0;												// Z0
 			dRz(4) = TMath::ASin(ArgRz) / Ci;							// Cot(theta)
 			//

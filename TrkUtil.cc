@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <TSpline.h>
+#include <TDecompChol.h>
 
 // Constructor
 TrkUtil::TrkUtil(Double_t Bz)
@@ -32,6 +33,84 @@ TrkUtil::~TrkUtil()
 	fRmax = 0.0;				// Higher	DCH radius
 	fZmin = 0.0;				// Lower		DCH z
 	fZmax = 0.0;				// Higher	DCH z
+}
+//
+// Distance between two lines
+//
+void TrkUtil::LineDistance(TVector3 x0, TVector3 y0, TVector3 dirx, TVector3 diry, Double_t &sx, Double_t &sy, Double_t &distance)
+{
+	TMatrixDSym M(2);
+	M(0,0) = dirx.Mag2();
+	M(1,1) = diry.Mag2();
+	M(0,1) = -dirx.Dot(diry);
+	M(1,0) = M(0,1);
+	M.Invert();
+	TVectorD c(2);
+	c(0) = dirx.Dot(y0-x0);
+	c(1) = diry.Dot(x0-y0);
+	TVectorD st = M*c;
+	//
+	// Fill output
+	sx = st(0);
+	sy = st(1);
+	//
+	TVector3 x = x0+sx*dirx;
+	TVector3 y = y0+sy*diry;
+	TVector3 d = x-y;
+	distance = d.Mag();
+}
+//
+// Covariance smearing
+//
+TVectorD TrkUtil::CovSmear(TVectorD x, TMatrixDSym C)
+{
+	//
+	// Check arrays
+	//
+	// Consistency of dimensions
+	Int_t Nvec = x.GetNrows();
+	Int_t Nmat = C.GetNrows();
+	if (Nvec != Nmat || Nvec == 0)
+	{
+		std::cout << "TrkUtil::CovSmear: vector/matrix mismatch. Aborting." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	// Positive diagonal elements
+	for (Int_t i = 0; i < Nvec; i++)
+	{
+		if (C(i, i) <= 0.0)
+		{
+			std::cout << "TrkUtil::CovSmear: covariance matrix has negative diagonal elements. Aborting." << std::endl;
+			exit(EXIT_FAILURE);
+		}
+	}
+	//
+	// Do a Choleski decomposition and random number extraction, with appropriate stabilization
+	//
+	TMatrixDSym CvN = C;
+	TMatrixDSym DCv(Nvec); DCv.Zero();
+	TMatrixDSym DCvInv(Nvec); DCvInv.Zero();
+	for (Int_t id = 0; id < Nvec; id++)
+	{
+		Double_t dVal = TMath::Sqrt(C(id, id));
+		DCv(id, id) = dVal;
+		DCvInv(id, id) = 1.0 / dVal;
+	}
+	CvN.Similarity(DCvInv);			// Normalize diagonal to 1
+	TDecompChol Chl(CvN);
+	Bool_t OK = Chl.Decompose();		// Choleski decomposition of normalized matrix
+	if (!OK)
+	{
+		std::cout << "TrkUtil::CovSmear: covariance matrix is not positive definite. Aborting." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	TMatrixD U = Chl.GetU();			// Get Upper triangular matrix
+	TMatrixD Ut(TMatrixD::kTransposed, U); // Transposed of U (lower triangular)
+	TVectorD r(Nvec);
+	for (Int_t i = 0; i < Nvec; i++)r(i) = gRandom->Gaus(0.0, 1.0);		// Array of normal random numbers
+	TVectorD xOut = x + DCv * (Ut * r);	// Observed parameter vector
+	//
+	return xOut;
 }
 //
 // Helix parameters from position and momentum
