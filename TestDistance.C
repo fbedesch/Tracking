@@ -126,43 +126,11 @@ void TestDistance(Double_t dist = 20.)
 			Q *= -1.;
 			TVector3 po = pout[i]->Vect();
 			TVectorD prGen = TrkUtil::XPtoPar(x, po, Q, Bfield);	// Generated parameters
-			TMatrixDSym Cov(5);
-			Bool_t accpt = kFALSE;
-			if (inside)
-			{
-				if (GC->IsAccepted(po))			// Check track simplified acceptance
-				{
-					Nacc++; accpt = kTRUE;
-					// Observed track parameters
-					Double_t pt = po.Pt();
-					Double_t angd = po.Theta() * 180. / TMath::Pi();
-					Cov = GC->GetCov(pt, angd);				// Track covariance
-				}
-			}
-			else
-			{
-				SolTrack* trk = new SolTrack(x, po, G);
-				if (trk->nmHit() >= GC->GetMinHits())		// Check precise track acceptance
-				{
-					cout << "SolTrack (" << i << "). #hits = " << trk->nmHit() << endl;
-					//cout << "Measured hits = " << trk->nmHit() << endl;
-					Nacc++; accpt = kTRUE;
-					// Track covariance
-					Bool_t Res = kTRUE; Bool_t MS = kTRUE;
-					trk->CovCalc(Res, MS);					// Calculate covariance matrix
-					//cout << "1 ==" << endl;
-					Cov = trk->Cov();						// Track covariance
-					//cout << "2 ==" << endl;
-				}
-				//cout << "3 ==" << endl;
-				delete trk;
-			}
-			//cout << "3.5 ==" << endl;
-			if (accpt)
-			{
-				TVectorD prObs = TrkUtil::CovSmear(prGen, Cov);		// Observed parameters
-				//cout << "4 ==" << endl;
-				// Fill vertexing arrays
+			if (GC->IsAccepted(x, po, G)) {
+				Nacc++;
+				ObsTrk* trk = new ObsTrk(x, po, Q, GC, G);
+				TVectorD prObs = trk->GetObsPar();		// Observed parameters
+				TMatrixDSym Cov = trk->GetCov();		// their covariance matrix
 				pr[i] = new TVectorD(prObs);						// Track list for vertexing
 				cv[i] = new TMatrixDSym(Cov);						// Covariance list for vertexing
 				if (TMath::IsNaN(prObs(0)))

@@ -138,6 +138,29 @@ void SolGridCov::Read(TString fname)
 	//
 }
 //
+// Detailed acceptance check
+//
+Bool_t SolGridCov::IsAccepted(TVector3 x, TVector3 p, SolGeom* G)
+{
+	Bool_t Accept = kFALSE;
+	//
+	// Check if track origin is inside beampipe and betwen the first disks
+	//
+	Double_t Rin = G->GetRmin();
+	Double_t ZinPos = G->GetZminPos();
+	Double_t ZinNeg = G->GetZminNeg();
+	Bool_t inside = TrkUtil::IsInside(x, Rin, ZinNeg, ZinPos); // Check if in inner box
+	if (inside) Accept = IsAccepted(p);
+	else
+	{
+		SolTrack* trk = new SolTrack(x, p, G);
+		if (trk->nmHit() >= fNminHits)Accept = kTRUE;
+		delete trk;
+	}
+	//
+	return Accept;
+}
+//
 Bool_t SolGridCov::IsAccepted(Double_t pt, Double_t Theta)
 {
 	//

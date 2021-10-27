@@ -18,11 +18,13 @@ void TestSolTrackOff(Double_t theta = 90)
 	std::cout << "Min radius = " << G->GetRmin()<<", ";
 	std::cout << "Negative Z min = " << G->GetZminNeg()<<", ";
 	std::cout << "Positive Z min = " << G->GetZminPos() << std::endl;
+	SolGridCov* GC = new SolGridCov();
+	GC->Read("CovIDEA-BASE.root");			// Read in covariance array
 	//
 	// Setup arrays
 	const Int_t Npt = 17;
 	Double_t dlen[Npt] = { 0.0, 1.0e-2,2.0e-2,3.0e-2,5.0e-2,8.e-2,10.e-2,20.e-2,
-		40.e-2,50.e-2,60.e-2,70.e-2,100.e-2,130.e-2,150.e-2,200.e-2,250.e-2};
+		40.e-2,50.e-2,60.e-2,70.e-2,100.e-2,130.e-2,150.e-2,175.e-2,200.e-2};
 	Double_t Nhits[Npt];
 	Double_t NmHits[Npt];
 	Double_t Rh[Npt];
@@ -42,14 +44,19 @@ void TestSolTrackOff(Double_t theta = 90)
 		SolTrack* trk = new SolTrack(x, p, G);
 		Nhits[ip] = (Double_t)trk->nHit();
 		NmHits[ip] = (Double_t)trk->nmHit();
-		if (NmHits[ip] > 6) {
+		if (NmHits[ip] >= 6) {
 			Nct++;
-			Bool_t Res = kTRUE;
-			Bool_t MS = kTRUE;
-			trk->CovCalc(Res, MS);
-			sD0[ip] = trk->s_D() * 1.e6;
-			sPt[ip] = trk->s_C() / TMath::Abs(trk->C());
+			//Bool_t Res = kTRUE;
+			//Bool_t MS = kTRUE;
+			//trk->CovCalc(Res, MS);
+			Double_t Q = 1.;
+			ObsTrk* otrk = new ObsTrk(x, p, Q, GC, G);
+			TMatrixDSym Cov = otrk->GetCov();
+			sD0[ip] = sqrt(Cov(0,0)) * 1.e6;
+			sPt[ip] = sqrt(Cov(2,2)) / TMath::Abs(trk->C());
+			delete otrk;
 		}
+		delete trk;
 	}
 	TCanvas *cHit = new TCanvas("cHit", "Hit count", 50, 50, 800, 500);
 	cHit->Divide(2, 2);
