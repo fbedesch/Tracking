@@ -6,6 +6,7 @@
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
 #include <TRandom.h>
+#include <TMath.h>
 //
 //
 // Class test
@@ -27,6 +28,13 @@ protected:
 	void SetB(Double_t Bz) { fBz = Bz; }
 	TVectorD XPtoPar(TVector3 x, TVector3 p, Double_t Q);
 	TVector3 ParToP(TVectorD Par);
+	TMatrixDSym RegInv(TMatrixDSym& Min);
+	//
+	// Track trajectory derivatives
+	TMatrixD derXdPar(TVectorD par, Double_t s);	// derivatives of position wrt parameters
+	TVectorD derXds(TVectorD par, Double_t s);		// derivatives of position wrt phase
+	TVectorD dsdPar_R(TVectorD par, Double_t R);	// derivatives of phase at constant R
+	TVectorD dsdPar_z(TVectorD par, Double_t z);	// derivatives of phase at constant z
 	//
 	// Conversion to ACTS parametrization
 	//
@@ -59,10 +67,18 @@ public:
 	// Service routines
 	//
 	static TVectorD XPtoPar(TVector3 x, TVector3 p, Double_t Q, Double_t Bz);
-	static TVector3 ParToX(TVectorD Par);				// position of minimum distance from z axis
+	static TVector3 ParToX(TVectorD Par);			// position of minimum distance from z axis
 	static TVector3 ParToP(TVectorD Par, Double_t Bz);	// Get Momentum from track parameters
-	static Double_t ParToQ(TVectorD Par);				// Get track charge
+	static Double_t ParToQ(TVectorD Par);			// Get track charge
 	static void LineDistance(TVector3 x0, TVector3 y0, TVector3 dirx, TVector3 diry, Double_t &sx, Double_t &sy, Double_t &distance);
+	//
+	// Track trajectory
+	//
+	static TVector3 Xtrack(TVectorD par, Double_t s);	// Parametric track trajectory
+	TVectorD derRphi_R(TVectorD par, Double_t R);		// Derivatives of R-phi at constant R
+	TVectorD derZ_R(TVectorD par, Double_t R);		// Derivatives of z at constant R
+	TVectorD derRphi_Z(TVectorD par, Double_t z);		// Derivatives of R-phi at constant z
+	TVectorD derR_Z(TVectorD par, Double_t z);		// Derivatives of R at constant z
 	//
 	// Smear with given covariance matrix
 	//
@@ -71,7 +87,7 @@ public:
 	// Conversion from meters to mm
 	//
 	static TVectorD ParToMm(TVectorD Par);			// Parameter conversion
-	static TMatrixDSym CovToMm(TMatrixDSym Cov);	// Covariance conversion
+	static TMatrixDSym CovToMm(TMatrixDSym Cov);		// Covariance conversion
 	//
 	// Inside cylindrical volume
 	//

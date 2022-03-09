@@ -65,6 +65,8 @@ SolTrack::SolTrack(TVector3 x, TVector3 p, SolGeom* G)
 SolTrack::SolTrack(Double_t D, Double_t phi0, Double_t C, Double_t z0, Double_t ct, SolGeom *G)
 {
 	fG = G;
+	Double_t B = G->B();
+	SetB(B);
 	// Store parameters
 	fpar[0] = D;
 	fpar[1] = phi0;
@@ -72,7 +74,7 @@ SolTrack::SolTrack(Double_t D, Double_t phi0, Double_t C, Double_t z0, Double_t 
 	fpar[3] = z0;
 	fpar[4] = ct;
 	// Store momentum
-	Double_t pt = G->B()*TrkUtil::cSpeed() / TMath::Abs(2 * C);
+	Double_t pt = B * TrkUtil::cSpeed() / TMath::Abs(2 * C);
 	Double_t px = pt*TMath::Cos(phi0);
 	Double_t py = pt*TMath::Sin(phi0);
 	Double_t pz = pt*ct;
@@ -87,8 +89,6 @@ SolTrack::SolTrack(Double_t D, Double_t phi0, Double_t C, Double_t z0, Double_t 
 // Destructor
 SolTrack::~SolTrack()
 {
-	//delete[] & fp;
-	//delete[] & fpar;
 	fCov.Clear();
 }
 //
@@ -100,15 +100,15 @@ Bool_t SolTrack::HitLayer(Int_t il, Double_t &R, Double_t &phi, Double_t &zz)
 	Double_t Ci = C();
 	Double_t z0i = z0();
 	Double_t cti = ct();
-	//cout << "D = " << Di << ", ph0 = " << phi0i << ", C = " << Ci << ", z0 = " << z0i << ", cot = " << cti << endl;
-	//cout << "HitLayer, i = "<<il<<",  lTyp(il) = " << fG->lTyp(il) << endl;
-	//if (fG->lTyp(il) == 1)cout << "zmin = " << fG->lxMin(il) << ", zmax = " << fG->lxMax(il);
-	//if (fG->lTyp(il) == 2)cout << "Rmin = " << fG->lxMin(il) << ", Rmax = " << fG->lxMax(il);
 	//
 	R = 0; phi = 0; zz = 0;
-	Double_t Rmin = TMath::Sqrt(fx[0] * fx[0] + fx[1] * fx[1]); // Smallest track radius
-	//
 	Bool_t val = kFALSE;
+	Double_t Rmin = TMath::Sqrt(fx[0] * fx[0] + fx[1] * fx[1]); // Smallest track radius
+	if (Rmin < TMath::Abs(Di)) return val;
+	//
+	Double_t ArgzMin = Ci * TMath::Sqrt((Rmin * Rmin - Di * Di) / (1 + 2 * Ci * Di));
+	Double_t stMin = TMath::ASin(ArgzMin) / Ci;					// Arc length at track origin
+	//
 	if (fG->lTyp(il) == 1)			// Cylinder: layer at constant R
 	{
 		R = fG->lPos(il);
@@ -119,7 +119,6 @@ Bool_t SolTrack::HitLayer(Int_t il, Double_t &R, Double_t &phi, Double_t &zz)
 			if (TMath::Abs(argz) < 1.0)
 			{
 				zz = z0i + cti*TMath::ASin(argz) / Ci;
-				//cout << ", z of hit = " << zz << endl;
 				if (zz > fG->lxMin(il) && zz < fG->lxMax(il))
 				{
 					phi = phi0i + TMath::ASin(argph);
@@ -131,11 +130,10 @@ Bool_t SolTrack::HitLayer(Int_t il, Double_t &R, Double_t &phi, Double_t &zz)
 	else if (fG->lTyp(il) == 2)		// disk: layer at constant z
 	{
 		zz = fG->lPos(il);
-		Double_t arg = Ci*(zz - z0i) / cti;
-		if (TMath::Abs(arg) < 1.0 && (zz - z0i) / cti > 0 && TMath::Abs(fx[2]) < TMath::Abs(zz))
+		Double_t st = (zz - z0i) / cti;
+		if (TMath::Abs(Ci * st) < 1.0 && st > stMin)
 		{
-			R = TMath::Sqrt(Di*Di + (1. + 2.*Ci*Di)*pow(TMath::Sin(arg), 2) / (Ci*Ci));
-			//cout << ", R of hit = " << R << endl;
+			R = TMath::Sqrt(Di * Di + (1. + 2. * Ci * Di) * pow(TMath::Sin(Ci * st), 2) / (Ci * Ci));
 			if (R > fG->lxMin(il) && R < fG->lxMax(il))
 			{
 				Double_t arg1 = (Ci*R + (1 + Ci*Di)*Di / R) / (1. + 2.*Ci*Di);
@@ -177,7 +175,7 @@ Int_t SolTrack::nmHit()
 Int_t SolTrack::HitList(Int_t *&ihh, Double_t *&rhh, Double_t *&zhh)
 {
 	//
-	// Return lists of hits associated to a track including all scattering layers. 
+	// Return lists of hits associated to a track including all scattering layers.
 	// Return value is the total number of measurement hits
 	// kmh = total number of measurement layers hit for given type
 	// ihh = pointer to layer number
@@ -191,7 +189,7 @@ Int_t SolTrack::HitList(Int_t *&ihh, Double_t *&rhh, Double_t *&zhh)
 	for (Int_t i = 0; i < fG->Nl(); i++)
 	{
 		Double_t R; Double_t phi; Double_t zz;
-		if (HitLayer(i, R, phi, zz)) 
+		if (HitLayer(i, R, phi, zz))
 		{
 			zhh[kh] = zz;
 			rhh[kh] = R;
@@ -208,7 +206,7 @@ Int_t SolTrack::HitList(Int_t *&ihh, Double_t *&rhh, Double_t *&zhh)
 Int_t SolTrack::HitListXYZ(Int_t *&ihh, Double_t *&Xh, Double_t *&Yh, Double_t *&Zh)
 {
 	//
-	// Return lists of hits associated to a track for all measurement layers. 
+	// Return lists of hits associated to a track for all measurement layers.
 	// Return value is the total number of measurement hits
 	// kmh = total number of measurement layers hit for given type
 	// ihh = pointer to layer number
@@ -235,6 +233,48 @@ Int_t SolTrack::HitListXYZ(Int_t *&ihh, Double_t *&Xh, Double_t *&Yh, Double_t *
 	return kmh;
 }
 //
+Int_t SolTrack::FirstHit(Double_t &Xfirst, Double_t &Yfirst, Double_t &Zfirst)
+{
+	Int_t iFirst = -1;
+	Int_t iFirstLay = -1;	// Default return with no hits
+	Xfirst = 0.;
+	Yfirst = 0.;
+	Zfirst = 0.;
+	Int_t Nmh = nmHit();	// # measurement hits
+	if(Nmh > 0){
+		Int_t    *ih = new Int_t   [Nmh];
+		Double_t *Xh = new Double_t[Nmh];
+		Double_t *Yh = new Double_t[Nmh];
+		Double_t *Zh = new Double_t[Nmh];
+		Double_t *dh = new Double_t[Nmh];
+		//
+		Int_t n = HitListXYZ(ih, Xh, Yh, Zh);
+		//
+		for(Int_t i=0; i<Nmh; i++){
+			Double_t rr = TMath::Sqrt(Xh[i]*Xh[i]+Yh[i]*Yh[i]);	// Hit radius
+			dh[i] = TMath::ASin(C() * TMath::Sqrt((rr * rr - D() * D()) / (1. + 2 * C() * D()))) / C();	// Arc length traveled
+		}
+		//
+		Int_t *hord = new Int_t[Nmh];			// hit order by increasing arc length
+		TMath::Sort(Nmh, dh, hord, kFALSE);		// Order by increasing arc length
+		iFirst = hord[0];				// First hit pointer
+		Xfirst = Xh[iFirst];
+		Yfirst = Yh[iFirst];
+		Zfirst = Zh[iFirst];
+		iFirstLay = ih[iFirst];
+		//
+		// Clean
+		delete [] ih;
+		delete [] Xh;
+		delete [] Yh;
+		delete [] Zh;
+		delete [] dh;
+		delete [] hord;
+	}
+//
+	return 	iFirstLay;	// Return first hit layer number
+}
+//
 // Track plot
 //
 TGraph *SolTrack::TrkPlot()
@@ -252,10 +292,10 @@ TGraph *SolTrack::TrkPlot()
 	kmh = HitList(ih, rh, zh);				// hit layer list
 	//for (Int_t j = 0; j < Nhit; j++) cout << "r = " << rh[j] << ", z = " << zh[j] << endl;
 	Double_t *dh = new Double_t[Nhit];		// Hit distance from origin
-	for(Int_t i=0; i<Nhit; i++)dh[i] = TMath::Sqrt(rh[i] * rh[i] + zh[i] * zh[i]);
+	for(Int_t i=0; i<Nhit; i++)dh[i] = TMath::ASin(C() * TMath::Sqrt((rh[i] * rh[i] - D() * D()) / (1. + 2 * C() * D()))) / C();	// Arc length traveled;
 	//
 	Int_t *hord = new Int_t[Nhit];
-	TMath::Sort(Nhit, dh, hord, kFALSE);	// Order by increasing distance from origin
+	TMath::Sort(Nhit, dh, hord, kFALSE);		// Order by increasing phase
 	Double_t *z = new Double_t[Nhit];		// z of ordered hit
 	Double_t *r = new Double_t[Nhit];		// r of ordered hit
 	for (Int_t i = 0; i < Nhit; i++)
@@ -271,6 +311,12 @@ TGraph *SolTrack::TrkPlot()
 	gr->SetMarkerSize(1);
 	gr->SetLineColor(kMagenta);
 	//
+	// clean up
+	//
+	delete[] zh;
+	delete[] rh;
+	delete[] ih;
+	delete[] hord;
 	return gr;
 }
 //
@@ -280,7 +326,7 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 {
 	//
 	//
-	// Input flags: 
+	// Input flags:
 	//				Res = .TRUE. turn on resolution effects/Use standard resolutions
 	//					  .FALSE. set all resolutions to 0
 	//				MS  = .TRUE. include Multiple Scattering
@@ -295,25 +341,26 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	//
 	Int_t ntry = 0;
 	Int_t ntrymax = 0;
-	Int_t Nhit = nHit();					// Total number of layers hit
+	Int_t Nhit = nHit();				// Total number of layers hit
 	Double_t *zhh = new Double_t[Nhit];		// z of hit
 	Double_t *rhh = new Double_t[Nhit];		// r of hit
 	Double_t *dhh = new Double_t[Nhit];		// distance of hit from origin
 	Int_t    *ihh = new Int_t[Nhit];		// true index of layer
-	Int_t kmh;								// Number of measurement layers hit
+	Int_t kmh;					// Number of measurement layers hit
 	//
 	kmh = HitList(ihh, rhh, zhh);			// hit layer list
-	Int_t mTot = 0;							// Total number of measurements
+	Int_t mTot = 0;					// Total number of measurements
 	for (Int_t i = 0; i < Nhit; i++)
 	{
-		dhh[i] = TMath::Sqrt(rhh[i] * rhh[i] + zhh[i] * zhh[i]);
+		Double_t rr = rhh[i];
+		dhh[i] = TMath::ASin(C() * TMath::Sqrt((rr * rr - D() * D()) / (1. + 2 * C() * D()))) / C();	// Arc length traveled
 		if (fG->isMeasure(ihh[i])) mTot += fG->lND(ihh[i]);	// Count number of measurements
 	}
 	//
-	// Order hit list by increasing distance from origin
+	// Order hit list by increasing arc length
 	//
 	Int_t    *hord = new Int_t[Nhit];		// hit order by increasing distance from origin
-	TMath::Sort(Nhit, dhh, hord, kFALSE);	// Order by increasing distance from origin
+	TMath::Sort(Nhit, dhh, hord, kFALSE);		// Order by increasing distance from origin
 	Double_t *zh = new Double_t[Nhit];		// d-ordered z of hit
 	Double_t *rh = new Double_t[Nhit];		// d-ordered r of hit
 	Int_t    *ih = new Int_t[Nhit];			// d-ordered true index of layer
@@ -327,7 +374,7 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	//
 	// Store interdistances and multiple scattering angles
 	//
-	Double_t sn2t = 1.0 / (1 + ct()*ct());			//sin^2 theta of track
+	Double_t sn2t = 1.0 / (1.0 + ct()*ct());			//sin^2 theta of track
 	Double_t cs2t = 1.0 - sn2t;						//cos^2 theta
 	Double_t snt = TMath::Sqrt(sn2t);				// sin theta
 	Double_t cst = TMath::Sqrt(cs2t);				// cos theta
@@ -336,11 +383,13 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	Double_t pz0 = pt() * ct();
 	//
 	TMatrixDSym dik(Nhit);	dik.Zero();		// Distances between layers
-	Double_t *thms = new Double_t[Nhit];	// Scattering angles/plane
-	Double_t *cs = new Double_t[Nhit];		// Cosine of angle with layer normal
+	Double_t *thms = new Double_t[Nhit];		// Scattering angles/plane
+	Double_t* cs = new Double_t[Nhit];		// Cosine of angle with normal in transverse plane
+	//
 	for (Int_t ii = 0; ii < Nhit; ii++)		// Hit layer loop
 	{
 		Int_t i = ih[ii];					// Get true layer number
+		Int_t il = hord[ii];					// Unordered layer
 		Double_t B = C()*TMath::Sqrt((rh[ii] * rh[ii] - D()*D()) / (1 + 2 * C()*D()));
 		//
 		Double_t pxi = px0*(1-2*B*B)-2*py0*B*TMath::Sqrt(1-B*B);		// Momentum at scattering layer
@@ -352,119 +401,86 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 		Double_t nx = TMath::Cos(phi);		// Barrel layer normal
 		Double_t ny = TMath::Sin(phi);
 		Double_t nz = 0.0;
-		if (fG->lTyp(i) == 2)								// this is Z layer
+		cs[ii] = TMath::Abs((pxi * nx + pyi * ny) / pt());
+		//
+		if (fG->lTyp(i) == 2)			// this is Z layer
 		{
 			nx = 0.0;
 			ny = 0.0;
 			nz = 1.0;
 		}
-		Double_t corr = (pxi*nx + pyi * ny + pzi * nz) / p(); 
-		cs[ii] = corr;
-		Double_t Rlf = fG->lTh(i) / (corr*fG->lX0(i));		// Rad. length fraction
+		Double_t corr = TMath::Abs(pxi*nx + pyi * ny + pzi * nz) / p();
+		Double_t Rlf = fG->lTh(i) / (corr*fG->lX0(i));					// Rad. length fraction
 		thms[ii] = 0.0136*TMath::Sqrt(Rlf)*(1.0 + 0.038*TMath::Log(Rlf)) / p();		// MS angle
 		if (!MS)thms[ii] = 0;
 		//
 		for (Int_t kk = 0; kk < ii; kk++)	// Fill distances between layers
 		{
-			Double_t Ci = C();
-			Double_t Di = D();
-			//
-			//dik(ii, kk) = (TMath::ASin(Ci*rh[ii])-TMath::ASin(Ci*rh[kk]))/(Ci*snt);  // Approximation for small D
-			dik(ii, kk) = (TMath::ASin(Ci*TMath::Sqrt((rh[ii]*rh[ii]-Di*Di)/(1.+2*Ci*Di)))-
-				TMath::ASin(Ci * TMath::Sqrt((rh[kk] * rh[kk] - Di * Di) / (1. + 2 * Ci * Di)))) /(Ci*snt);
+			Int_t kl = hord[kk];		// Unordered layer
+			dik(ii, kk) = TMath::Abs(dhh[il] - dhh[kl])/snt;
 			dik(kk, ii) = dik(ii, kk);
 		}
-		//
-		// Store momentum components for resolution correction cosines
-		//
-		Double_t *pRi = new Double_t[Nhit];
-		pRi[ii] = TMath::Abs(pxi * TMath::Cos(phi) + pyi * TMath::Sin(phi)); // Radial component
-		Double_t *pPhi = new Double_t[Nhit];
-		pPhi[ii] = TMath::Abs(pxi * TMath::Sin(phi) - pyi * TMath::Cos(phi)); // Phi component
 	}
 	//
 	// Fill measurement covariance
 	//
-	Int_t *mTl = new Int_t[mTot];		// Pointer from measurement number to true layer number
+	TVectorD tPar(5,fpar);
+	//
 	TMatrixDSym Sm(mTot); Sm.Zero();	// Measurement covariance
-	TMatrixD Rm(mTot, 5);				// Derivative matrix
-	Int_t im = 0;
+	TMatrixD Rm(mTot, 5);			// Derivative matrix
+	Int_t im = 0;						// Initialize number of measurement counter
 	//
 	// Fill derivatives and error matrix with MS
 	//
-	Double_t AngMax = 90.; Double_t AngMx = AngMax * TMath::Pi() / 180.;
-	Double_t csMin = TMath::Cos(AngMx);	// Set maximum angle wrt normal
-	//
 	for (Int_t ii = 0; ii < Nhit; ii++)
 	{
-		Int_t i = ih[ii];					// True layer number
+		Int_t i = ih[ii];				// True layer number
 		Int_t ityp  = fG->lTyp(i);			// Layer type Barrel or Z
 		Int_t nmeai = fG->lND(i);			// # measurements in layer
-		if (fG->isMeasure(i) && nmeai >0 && cs[ii] > csMin)
+
+		if (fG->isMeasure(i))
 		{
-			Double_t Di    = D();				// Get true track parameters
-			Double_t phi0i = phi0();
-			Double_t Ci    = C();
-			Double_t z0i   = z0();
-			Double_t cti   = ct();
-			//
-			Double_t Ri    = rh[ii];
-			Double_t ArgRp = (Ri*Ci + (1 + Ci * Di)*Di / Ri) / (1 + 2 * Ci*Di);
-			Double_t ArgRz = Ci * TMath::Sqrt((Ri*Ri - Di * Di) / (1 + 2 * Ci*Di));
-			//
-			TVectorD dRphi(5); dRphi.Zero();		// R-phi derivatives @ const. R
-			TVectorD dRz(5); dRz.Zero();			// z     derivatives @ const. R
-			//
-			// Derivative overflow protection
-			Double_t dMin = 0.8;
-			Double_t den = TMath::Max(dMin, TMath::Sqrt(1 - ArgRp * ArgRp));
-			Double_t Op2CD = 1. + 2 * Ci * Di;
-			dRphi(0) = (1. - 2 * (Ci * Ci * Ri * Ri + Ci * Di * (1. + Ci * Di)) / (Op2CD * Op2CD)) / den;	// D derivative
-			dRphi(1) = Ri;												// phi0 derivative
-			dRphi(2) = ((Ri * Ri - Di * Di) / (Op2CD * Op2CD)) / den;	// C derivative
-			dRphi(3) = 0.0;												// z0 derivative
-			dRphi(4) = 0.0;												// cot(theta) derivative
-			//
-			//
-			//dRz(0) = -cti * Di / 
-			//	(Ri*TMath::Max(dMin,TMath::Sqrt(1 - Ci * Ci*Ri*Ri)));	// D
-			Double_t denz = TMath::Max(dMin, TMath::Sqrt(1 - ArgRz * ArgRz));
-			dRz(0) = -(cti * Ci *(Di+Ci*(Ri*Ri+Di*Di))/(Op2CD*Op2CD))/(ArgRz*denz);	// D
-			dRz(1) = 0.0;												// Phi0
-			//dRz(2) = cti * (Ri*Ci / TMath::Sqrt(1-Ri*Ri*Ci*Ci) -		// C 
-			//	TMath::ASin(Ri*Ci)) / (Ci*Ci);						
-			dRz(2) = (cti / (Ci * Ci))*(ArgRz*(1+Ci*Di)/(denz*Op2CD)-TMath::ASin(ArgRz));// C
-			dRz(3) = 1.0;												// Z0
-			dRz(4) = TMath::ASin(ArgRz) / Ci;							// Cot(theta)
+			Double_t Ri = rh[ii];
+			Double_t zi = zh[ii];
 			//
 			for (Int_t nmi = 0; nmi < nmeai; nmi++)
 			{
-				mTl[im] = i;
-				Double_t stri = 0;
-				Double_t sig = 0;
+				Double_t stri = 0;						// Stereo angle
+				Double_t sig = 0;						// Layer resolution
+				// Constant R derivatives
+				TVectorD dRphi(5); dRphi.Zero();		// R-phi derivatives @ const. R
+				TVectorD dRz(5); dRz.Zero();			// z     derivatives @ const. R
+				//
 				if (nmi + 1 == 1)		// Upper layer measurements
 				{
 					stri = fG->lStU(i);	// Stereo angle
 					Double_t csa = TMath::Cos(stri);
 					Double_t ssa = TMath::Sin(stri);
+					//
 					sig = fG->lSgU(i);	// Resolution
 					if (ityp == 1)		// Barrel type layer (Measure R-phi, stereo or z at const. R)
 					{
 						//
-						// Almost exact solution (CD<<1, D<<R)
+						// Exact solution
+						dRphi = derRphi_R(tPar, Ri);
+						dRz   = derZ_R   (tPar, Ri);
+						//
 						Rm(im, 0) = csa * dRphi(0) - ssa * dRz(0);	// D derivative
 						Rm(im, 1) = csa * dRphi(1) - ssa * dRz(1);	// phi0 derivative
 						Rm(im, 2) = csa * dRphi(2) - ssa * dRz(2);	// C derivative
 						Rm(im, 3) = csa * dRphi(3) - ssa * dRz(3);	// z0 derivative
-						Rm(im, 4) = csa * dRphi(4) - ssa * dRz(4);	// cot(theta) derivative	
+						Rm(im, 4) = csa * dRphi(4) - ssa * dRz(4);	// cot(theta) derivative
 					}
-					if (ityp == 2)		// Z type layer (Measure phi at const. Z)
+					if (ityp == 2)		// Z type layer (Measure R-phi at const. Z)
 					{
-						Rm(im, 0) = 1.0;					// D derivative
-						Rm(im, 1) = rh[ii];					// phi0 derivative
-						Rm(im, 2) = rh[ii] * rh[ii];		// C derivative
-						Rm(im, 3) = 0;						// z0 derivative
-						Rm(im, 4) = 0;						// cot(theta) derivative
+						TVectorD dRphz(5); dRphz.Zero();		// R-phi derivatives @ const. z
+						dRphz = derRphi_Z(tPar, zi);
+						//
+						Rm(im, 0) = dRphz(0);					// D derivative
+						Rm(im, 1) = dRphz(1);					// phi0 derivative
+						Rm(im, 2) = dRphz(2);					// C derivative
+						Rm(im, 3) = dRphz(3);					// z0 derivative
+						Rm(im, 4) = dRphz(4);					// cot(theta) derivative
 					}
 				}
 				if (nmi + 1 == 2)			// Lower layer measurements
@@ -476,7 +492,10 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 					if (ityp == 1)			// Barrel type layer (measure R-phi, stereo or z at const. R)
 					{
 						//
-						// Almost exact solution (CD<<1, D<<R)
+						// Exact solution
+						dRphi = derRphi_R(tPar, Ri);
+						dRz   = derZ_R   (tPar, Ri);
+						//
 						Rm(im, 0) = csa * dRphi(0) - ssa * dRz(0);	// D derivative
 						Rm(im, 1) = csa * dRphi(1) - ssa * dRz(1);	// phi0 derivative
 						Rm(im, 2) = csa * dRphi(2) - ssa * dRz(2);	// C derivative
@@ -485,11 +504,14 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 					}
 					if (ityp == 2)			// Z type layer (Measure R at const. z)
 					{
-						Rm(im, 0) = 0;								// D derivative
-						Rm(im, 1) = 0;								// phi0 derivative
-						Rm(im, 2) = 0;								// C derivative
-						Rm(im, 3) = -1.0 / ct();					// z0 derivative
-						Rm(im, 4) = -rh[ii] / ct();					// cot(theta) derivative
+						TVectorD dRRz(5); dRRz.Zero();			// R     derivatives @ const. z
+						dRRz = derR_Z(tPar, zi);
+						//
+						Rm(im, 0) = dRRz(0);					// D derivative
+						Rm(im, 1) = dRRz(1);					// phi0 derivative
+						Rm(im, 2) = dRRz(2);					// C derivative
+						Rm(im, 3) = dRRz(3);					// z0 derivative
+						Rm(im, 4) = dRRz(4);					// cot(theta) derivative
 					}
 				}
 				// Derivative calculation completed
@@ -497,22 +519,29 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 				// Now calculate measurement error matrix
 				//
 				Int_t km = 0;
+				Double_t CosMin = TMath::Sin(TMath::Pi() / 9.);	// Protect for derivative explosion
 				for (Int_t kk = 0; kk <= ii; kk++)
 				{
-					Int_t k = ih[kk];					// True layer number
-					Int_t ktyp = fG->lTyp(k);			// Layer type Barrel or 
+					Int_t k = ih[kk];				// True layer number
+					Int_t ktyp = fG->lTyp(k);			// Layer type Barrel or disk
 					Int_t nmeak = fG->lND(k);			// # measurements in layer
-					if (fG->isMeasure(k) && nmeak > 0 &&cs[kk] > csMin)
+					if (fG->isMeasure(k))
 					{
 						for (Int_t nmk = 0; nmk < nmeak; nmk++)
 						{
 							Double_t strk = 0;
-							if (nmk + 1 == 1) strk = fG->lStU(k);	// Stereo angle
-							if (nmk + 1 == 2) strk = fG->lStL(k);	// Stereo angle
-							if (im == km && Res) Sm(im, km) += sig*sig;	// Detector resolution on diagonal
+							if (nmk + 1 == 1) strk = fG->lStU(k);	// Stereo angle upper
+							if (nmk + 1 == 2) strk = fG->lStL(k);	// Stereo angle lower
+							//if (im == km && Res) Sm(im, km) += sig*sig;	// Detector resolution on diagonal
+							if (im == km && Res) {
+								Double_t sg = sig;
+								if(TMath::Abs(strk) < TMath::Pi()/6. && cs[kk] < CosMin)
+								TMath::Min(1000.*sig,sg = sig/pow(cs[kk],4));
+								Sm(im, km) += sg * sg;	// Detector resolution on diagonal
+							}
 							//
 							// Loop on all layers below for MS contributions
-							for (Int_t jj = 0; jj < kk; jj++)		
+							for (Int_t jj = 0; jj < kk; jj++)
 							{
 								Double_t di = dik(ii, jj);
 								Double_t dk = dik(kk, jj);
@@ -522,9 +551,9 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 								else if (ityp == 2) msi = ms / cst;		// Disk
 								if (ktyp == 1) msk = ms / snt;			// Barrel
 								else if (ktyp == 2) msk = ms / cst;		// Disk
-								Double_t ci = TMath::Cos(stri); Double_t si = TMath::Sin(stri);
-								Double_t ck = TMath::Cos(strk); Double_t sk = TMath::Sin(strk);
-								Sm(im, km) += di*dk*(ci*ck*ms*ms + si*sk*msi*msk);			// Ms contribution
+								Double_t ci = TMath::Abs(TMath::Cos(stri)); Double_t si = TMath::Abs(TMath::Sin(stri));
+								Double_t ck = TMath::Abs(TMath::Cos(strk)); Double_t sk = TMath::Abs(TMath::Sin(strk));
+								Sm(im, km) += di*dk*(ci*ck*ms*ms + si*sk*msi*msk);	// Ms contribution
 							}
 							//
 							Sm(km, im) = Sm(im, km);
@@ -537,6 +566,7 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 		}
 	}
 	Sm.ResizeTo(mTot, mTot);
+	TMatrixDSym SmTemp = Sm;
 	Rm.ResizeTo(mTot, 5);
 	//
 	//**********************************************************************
@@ -546,11 +576,10 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	TMatrixDSym DSmInv(mTot); DSmInv.Zero();
 	for (Int_t id = 0; id < mTot; id++) DSmInv(id, id) = 1.0 / TMath::Sqrt(Sm(id, id));
 	TMatrixDSym SmN = Sm.Similarity(DSmInv);	// Normalize diagonal to 1
-	//SmN.Invert();
 	//
 	// Protected matrix inversions
 	//
-	TDecompChol Chl(SmN);
+	TDecompChol Chl(SmN,1.e-12);
 	TMatrixDSym SmNinv = SmN;
 	if (Chl.Decompose())
 	{
@@ -559,12 +588,14 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	}
 	else
 	{
-		cout << "SolTrack::CovCalc: Error matrix not positive definite. Recovering ...." << endl;
+		std::cout << "SolTrack::CovCalc: Error matrix not positive definite. Recovering ...." << std::endl;
+		//cout << "pt = " << pt() << endl;
 		if (ntry < ntrymax)
 		{
 			SmNinv.Print();
 			ntry++;
 		}
+		//
 		TMatrixDSym rSmN = MakePosDef(SmN); SmN = rSmN;
 		TDecompChol rChl(SmN);
 		SmNinv = SmN;
@@ -573,7 +604,6 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	}
 	Sm = SmNinv.Similarity(DSmInv);			// Error matrix inverted
 	TMatrixDSym H = Sm.SimilarityT(Rm);		// Calculate half Hessian
-	// Normalize before inversion
 	const Int_t Npar = 5;
 	TMatrixDSym DHinv(Npar); DHinv.Zero();
 	for (Int_t i = 0; i < Npar; i++)DHinv(i, i) = 1.0 / TMath::Sqrt(H(i, i));
@@ -581,6 +611,25 @@ void SolTrack::CovCalc(Bool_t Res, Bool_t MS)
 	// Invert and restore
 	Hnrm.Invert();
 	fCov = Hnrm.Similarity(DHinv);
+	//
+	// debug
+	//
+	if(TMath::IsNaN(fCov(0,0)))
+	{
+		std::cout<<"SolTrack::CovCalc: NaN found in covariance matrix"<<std::endl;
+	}
+	//
+	// Lots of cleanup to do
+	delete[] zhh;
+	delete[] rhh;
+	delete[] dhh;
+	delete[] ihh;
+	delete[] hord;
+	delete[] zh;
+	delete[] rh;
+	delete[] ih;
+	delete[] cs;
+	delete[] thms;
 }
 //
 // Force positive definitness in normalized matrix
@@ -598,7 +647,7 @@ TMatrixDSym SolTrack::MakePosDef(TMatrixDSym NormMat)
 	for (Int_t i = 0; i < Size; i++)if (TMath::Abs(NormMat(i, i) - 1.0)>1.0E-15)Check = kTRUE;
 	if (Check)
 	{
-		cout << "SolTrack::MakePosDef: input matrix doesn ot have 1 on diagonal. Abort." << endl;
+		std::cout << "SolTrack::MakePosDef: input matrix doesn ot have 1 on diagonal. Abort." << std::endl;
 		return rMatN;
 	}
 	//
@@ -606,6 +655,8 @@ TMatrixDSym SolTrack::MakePosDef(TMatrixDSym NormMat)
 	TMatrixDSymEigen Eign(NormMat);
 	TMatrixD U = Eign.GetEigenVectors();
 	TVectorD lambda = Eign.GetEigenValues();
+	//cout << "Eigenvalues:"; lambda.Print();
+	//cout << "Input matrix: "; NormMat.Print();
 	// Reset negative eigenvalues to small positive value
 	TMatrixDSym D(Size); D.Zero(); Double_t eps = 1.0e-13;
 	for (Int_t i = 0; i < Size; i++)
@@ -627,5 +678,6 @@ TMatrixDSym SolTrack::MakePosDef(TMatrixDSym NormMat)
 			rMatN(i2, i1) = rMatN(i1, i2);
 		}
 	}
+	//cout << "Rebuilt matrix: "; rMatN.Print();
 	return rMatN;
 }
