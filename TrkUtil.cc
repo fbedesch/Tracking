@@ -8,19 +8,21 @@
 TrkUtil::TrkUtil(Double_t Bz)
 {
 	fBz = Bz;
+	fUnitsMm = kFALSE;
 	fGasSel = 0;				// Default is He-Isobuthane (90-10)
-	fRmin = 0.0;				// Lower		DCH radius
+	fRmin = 0.0;				// Lower	DCH radius
 	fRmax = 0.0;				// Higher	DCH radius
-	fZmin = 0.0;				// Lower		DCH z
+	fZmin = 0.0;				// Lower	DCH z
 	fZmax = 0.0;				// Higher	DCH z
 }
 TrkUtil::TrkUtil()
 {
 	fBz = 0.0;
+	fUnitsMm = kFALSE;
 	fGasSel = 0;				// Default is He-Isobuthane (90-10)
-	fRmin = 0.0;				// Lower		DCH radius
+	fRmin = 0.0;				// Lower	DCH radius
 	fRmax = 0.0;				// Higher	DCH radius
-	fZmin = 0.0;				// Lower		DCH z
+	fZmin = 0.0;				// Lower	DCH z
 	fZmax = 0.0;				// Higher	DCH z
 }
 //
@@ -29,9 +31,9 @@ TrkUtil::~TrkUtil()
 {
 	fBz = 0.0;
 	fGasSel = 0;				// Default is He-Isobuthane (90-10)
-	fRmin = 0.0;				// Lower		DCH radius
+	fRmin = 0.0;				// Lower	DCH radius
 	fRmax = 0.0;				// Higher	DCH radius
-	fZmin = 0.0;				// Lower		DCH z
+	fZmin = 0.0;				// Lower	DCH z
 	fZmax = 0.0;				// Higher	DCH z
 }
 //
@@ -188,7 +190,7 @@ TVector3 TrkUtil::ParToP(TVectorD Par, Double_t Bz)
 	Double_t ct = Par(4);
 	//
 	TVector3 Pval;
-	Double_t pt = Bz * cSpeed() / TMath::Abs(2 * C);
+	Double_t pt = TMath::Abs(Bz) * cSpeed() / TMath::Abs(2 * C);
 	Pval(0) = pt * cos(phi0);
 	Pval(1) = pt * sin(phi0);
 	Pval(2) = pt * ct;
@@ -286,10 +288,10 @@ TVectorD TrkUtil::ParToMm(TVectorD Par)				// Parameter conversion
 	TVectorD Pmm(5);					// Return vector
 	//
 	Pmm(0) = Par(0) * 1.0e3;			// d0 in mm
-	Pmm(1) = Par(1);					// phi0 is unchanged
+	Pmm(1) = Par(1);				// phi0 is unchanged
 	Pmm(2) = Par(2) * 1.0e-3;			// C in mm^-1
 	Pmm(3) = Par(3) * 1.0e3;			// z0 in mm
-	Pmm(4) = Par(4);					// tan(lambda) = cot(theta) unchanged
+	Pmm(4) = Par(4);				// tan(lambda) = cot(theta) unchanged
 	//
 	return Pmm;
 }

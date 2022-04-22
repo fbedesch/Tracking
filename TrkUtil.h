@@ -16,6 +16,7 @@ class TrkUtil {
 	//
 protected:
 	Double_t fBz;							// Solenoid magnetic field
+	Bool_t fUnitsMm;						// True: use mm, False: use meters
 	//
 	Int_t fGasSel;							// Gas selection: 0: He-Iso, 1: He, 2:Ar-Eth, 3: Ar
 	Double_t fRmin;							// Lower		DCH radius
@@ -86,6 +87,7 @@ public:
 	//
 	// Conversion from meters to mm
 	//
+	void SetUnitsMm() {fUnitsMm = kTRUE; };
 	static TVectorD ParToMm(TVectorD Par);			// Parameter conversion
 	static TMatrixDSym CovToMm(TMatrixDSym Cov);		// Covariance conversion
 	//
