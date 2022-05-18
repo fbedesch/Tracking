@@ -46,8 +46,8 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 	//
 	Double_t ThDegMin = 40.0;
 	Double_t ThDegMax = 140.0;
-	Double_t Lmin = 0.2;
-	Double_t Lmax = 0.4;
+	Double_t Lmin = 0.002;
+	Double_t Lmax = 0.010;
 	Double_t dTheta = 0.20;
 	Double_t dPhi = 0.20;
 	Double_t Pmin = 0.5;
@@ -231,6 +231,13 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 		hCpullV->Fill((Vpar(2)-Gpar(2))/TMath::Sqrt(VparC(2,2)));
 		hZ0pullV->Fill((Vpar(3)-Gpar(3))/TMath::Sqrt(VparC(3,3)));
 		hCtpullV->Fill((Vpar(4)-Gpar(4))/TMath::Sqrt(VparC(4,4)));
+		//
+		TMatrixDSym Mbig = VM->GetBigCov();
+		//std::cout << "Big covariance:"; Mbig.Print();
+		Double_t Mass = 5.28;
+		Double_t *masses = new Double_t[Ntr];
+		for(Int_t im=0; im<Ntr; im++)masses[i] = 0.135;
+		VM->MassConstraint(Mass, masses);
 		delete VM;
 		//
 		delete[] pg;
