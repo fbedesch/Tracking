@@ -36,12 +36,20 @@ void TestBsDecay(Double_t p = 10., Int_t Nev = 2)
 	TH1D* h_BsPx = new TH1D("h_BsPx","Bs X-momentum pull",100,-10.,10.);
 	TH1D* h_BsPy = new TH1D("h_BsPy","Bs Y-momentum pull",100,-10.,10.);
 	TH1D* h_BsPz = new TH1D("h_BsPz","Bs Z-momentum pull",100,-10.,10.);
+	//
+	// Ds vertex parameter pulls
+	TH1D *hDpullV = new TH1D("hDpullV", "Pull vtx D", 100, -10., 10.);
+	TH1D *hP0pullV = new TH1D("hP0pullV", "Pull vtx #varphi_{0}", 100, -10., 10.);
+	TH1D *hCpullV = new TH1D("hCpullV", "Pull vtx C", 100, -10., 10.);
+	TH1D *hZ0pullV = new TH1D("hZ0pullV", "Pull vtx Z_{0}", 100, -10., 10.);
+	TH1D *hCtpullV = new TH1D("hCtpullV", "Pull vtx #lambda", 100, -10., 10.);
 	
 	//
 	// Event loop
 	Double_t rx, ry, rz;
 	TVector3 pBs;
 	for(Int_t n=0; n<Nev; n++){
+		if(n%10 == 0)cout<<"Event # "<<n<<endl;
 		Double_t Theta = 0.;
 		while(Theta <30. || Theta > 60.){
 			gRandom->Sphere(rx, ry, rz, p);
@@ -171,12 +179,29 @@ void TestBsDecay(Double_t p = 10., Int_t Nev = 2)
 			TMatrixDSym covXvDs = vDs->GetVtxCov();
 			Double_t Chi2Ds = vDs->GetVtxChi2();
 			//
+			// Mass constraint
+			VertexMore* VM = new VertexMore(vDs);	
+			Double_t DsMass = Bs.GetPmass(Bs.GetDs());	// Ds mass
+			Double_t Dsmasses[NtrDs] = 
+			{Bs.GetPmass(Bs.GetPiDs()), Bs.GetPmass(Bs.GetKpPhi()), Bs.GetPmass(Bs.GetKmPhi())};
+			Int_t DsList [NtrDs] = {0, 1, 2};
+			//cout<<"Before Ds mass constraint"<<endl;
+			VM->AddMassConstraint(DsMass, NtrDs, Dsmasses, DsList);
+			//
+			const Int_t NtrPhi = 2;
+			Double_t PhiMass = Bs.GetPmass(Bs.GetPhi());	// Phi mass
+			Double_t Phimasses[NtrPhi] = 
+			{Bs.GetPmass(Bs.GetKpPhi()), Bs.GetPmass(Bs.GetKmPhi())};
+			Int_t PhiList [NtrPhi] = {1, 2};
+			//cout<<"Before Phi mass constraint"<<endl;
+			VM->AddMassConstraint(PhiMass, NtrPhi, Phimasses, PhiList);
+			VM->MassConstrFit();
+			//
 			// Tracks for Bs vertex fit
 			const Int_t NtrBs = 2;
 			TVectorD **trPar = new TVectorD*[NtrBs];
 			TMatrixDSym **trCov = new TMatrixDSym*[NtrBs];
 			// Set Ds vertex track
-			VertexMore* VM = new VertexMore(vDs);
 			trPar[0] = new TVectorD(VM->GetVpar());
 			trCov[0] = new TMatrixDSym(VM->GetVcov());
 			Int_t NtPassB = 0;
@@ -203,6 +228,16 @@ void TestBsDecay(Double_t p = 10., Int_t Nev = 2)
 				h_DsPx->Fill((pDsRec(0)-pDs(0))/TMath::Sqrt(covDsP(0,0)));
 				h_DsPy->Fill((pDsRec(1)-pDs(1))/TMath::Sqrt(covDsP(1,1)));
 				h_DsPz->Fill((pDsRec(2)-pDs(2))/TMath::Sqrt(covDsP(2,2)));
+				// Vertex parameters
+				TVectorD Vpar = VM->GetVpar();
+				TMatrixDSym VparC = VM->GetVcov();
+				Double_t Qgen = VM->GetTotalQ();
+				TVectorD Gpar = TrkUtil::XPtoPar(xDs,pDs, Qgen, Bz);
+				hDpullV->Fill((Vpar(0)-Gpar(0))/TMath::Sqrt(VparC(0,0)));
+				hP0pullV->Fill((Vpar(1)-Gpar(1))/TMath::Sqrt(VparC(1,1)));
+				hCpullV->Fill((Vpar(2)-Gpar(2))/TMath::Sqrt(VparC(2,2)));
+				hZ0pullV->Fill((Vpar(3)-Gpar(3))/TMath::Sqrt(VparC(3,3)));
+				hCtpullV->Fill((Vpar(4)-Gpar(4))/TMath::Sqrt(VparC(4,4)));
 				//
 				// Fit Bs vertex
 				VertexFit* vBs = new VertexFit(NtrBs, trPar, trCov);
@@ -279,7 +314,7 @@ void TestBsDecay(Double_t p = 10., Int_t Nev = 2)
 	h_DsPz->Fit("gaus"); h_DsPz->Draw();
 	//
 	// Bs plots
-	TCanvas * cnv1 = new TCanvas("cnv1","Ds vertex pulls",100,100, 900,600);
+	TCanvas * cnv1 = new TCanvas("cnv1","Bs vertex pulls",100,100, 900,600);
 	cnv1->Divide(3,2);
 	// X
 	cnv1->cd(1); gPad->SetLogy(1);
@@ -305,4 +340,33 @@ void TestBsDecay(Double_t p = 10., Int_t Nev = 2)
 	cnv1->cd(6); gPad->SetLogy(1);
 	gStyle->SetOptStat(111111); gStyle->SetOptFit(1111);
 	h_BsPz->Fit("gaus"); h_BsPz->Draw();
+	//	
+	//
+	TCanvas *cnv4 = new TCanvas("cnv2", "Vertex parameter pulls", 300, 300, 500, 500);
+	cnv4->Divide(3, 2);
+	cnv4->cd(1); gPad->SetLogy(1);
+	gStyle->SetOptStat(111111);
+	gStyle->SetOptFit(1111);
+	hDpullV->Fit("gaus");
+	hDpullV->Draw();
+	cnv4->cd(2); gPad->SetLogy(1);
+	gStyle->SetOptStat(111111);
+	gStyle->SetOptFit(1111);
+	hP0pullV->Fit("gaus");
+	hP0pullV->Draw();
+	cnv4->cd(3); gPad->SetLogy(1);
+	gStyle->SetOptStat(111111);
+	gStyle->SetOptFit(1111);
+	hCpullV->Fit("gaus");
+	hCpullV->Draw();
+	cnv4->cd(4); gPad->SetLogy(1);
+	gStyle->SetOptStat(111111);
+	gStyle->SetOptFit(1111);
+	hZ0pullV->Fit("gaus");
+	hZ0pullV->Draw();
+	cnv4->cd(5); gPad->SetLogy(1);
+	gStyle->SetOptStat(111111);
+	gStyle->SetOptFit(1111);
+	hCtpullV->Fit("gaus");
+	hCtpullV->Draw();
 }

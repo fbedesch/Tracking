@@ -46,12 +46,12 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 	//
 	Double_t ThDegMin = 40.0;
 	Double_t ThDegMax = 140.0;
-	Double_t Lmin = 0.002;
-	Double_t Lmax = 0.010;
+	Double_t Lmin = 0.005;
+	Double_t Lmax = 0.015;
 	Double_t dTheta = 0.20;
 	Double_t dPhi = 0.20;
-	Double_t Pmin = 0.5;
-	Double_t Pmax = 1.;
+	Double_t Pmin = 10.5;
+	Double_t Pmax = 21.;
 	//
 	// Histograms
 	Int_t Nbin = 100;
@@ -67,16 +67,16 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 	//
 	// new parameter pulls
 	TH1D *hDpull = new TH1D("hDpull", "Pull new D", Nbin, -10., 10.);
-	TH1D *hP0pull = new TH1D("hP0pull", "Pull new #varphi_0", Nbin, -10., 10.);
+	TH1D *hP0pull = new TH1D("hP0pull", "Pull new #varphi_{0}", Nbin, -10., 10.);
 	TH1D *hCpull = new TH1D("hCpull", "Pull new C", Nbin, -10., 10.);
-	TH1D *hZ0pull = new TH1D("hZ0pull", "Pull new #Z_0", Nbin, -10., 10.);
+	TH1D *hZ0pull = new TH1D("hZ0pull", "Pull new Z_{0}", Nbin, -10., 10.);
 	TH1D *hCtpull = new TH1D("hCtpull", "Pull new #lambda", Nbin, -10., 10.);
 	//
 	// old parameter pulls
 	TH1D *hDpull0 = new TH1D("hDpull0", "Pull old D", Nbin, -10., 10.);
-	TH1D *hP0pull0 = new TH1D("hP0pull0", "Pull old #varphi_0", Nbin, -10., 10.);
+	TH1D *hP0pull0 = new TH1D("hP0pull0", "Pull old #varphi_{0}", Nbin, -10., 10.);
 	TH1D *hCpull0 = new TH1D("hCpull0", "Pull old C", Nbin, -10., 10.);
-	TH1D *hZ0pull0 = new TH1D("hZ0pull0", "Pull old #Z_0", Nbin, -10., 10.);
+	TH1D *hZ0pull0 = new TH1D("hZ0pull0", "Pull old Z_{0}", Nbin, -10., 10.);
 	TH1D *hCtpull0 = new TH1D("hCtpull0", "Pull old #lambda", Nbin, -10., 10.);
 	//
 	// Track momenta pulls
@@ -91,9 +91,9 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 	//
 	// vertex parameter pulls
 	TH1D *hDpullV = new TH1D("hDpullV", "Pull vtx D", Nbin, -10., 10.);
-	TH1D *hP0pullV = new TH1D("hP0pullV", "Pull vtx #varphi_0", Nbin, -10., 10.);
+	TH1D *hP0pullV = new TH1D("hP0pullV", "Pull vtx #varphi_{0}", Nbin, -10., 10.);
 	TH1D *hCpullV = new TH1D("hCpullV", "Pull vtx C", Nbin, -10., 10.);
-	TH1D *hZ0pullV = new TH1D("hZ0pullV", "Pull vtx #Z_0", Nbin, -10., 10.);
+	TH1D *hZ0pullV = new TH1D("hZ0pullV", "Pull vtx Z_{0}", Nbin, -10., 10.);
 	TH1D *hCtpullV = new TH1D("hCtpullV", "Pull vtx #lambda", Nbin, -10., 10.);
 	//
 	// Loop on # vertices
@@ -234,10 +234,19 @@ void TestVtxMom(Int_t Nvtx = 100, Int_t Ntr = 2)
 		//
 		TMatrixDSym Mbig = VM->GetBigCov();
 		//std::cout << "Big covariance:"; Mbig.Print();
-		Double_t Mass = 5.28;
-		Double_t *masses = new Double_t[Ntr];
-		for(Int_t im=0; im<Ntr; im++)masses[i] = 0.135;
-		VM->MassConstraint(Mass, masses);
+		Double_t *dd = new Double_t[3*(Ntr+1)];
+		for(Int_t i1=0; i1<3*Ntr+3; i1++) dd[i1] = sqrt(Mbig(i1,i1));
+		TMatrixDSym rMbig(3*(Ntr+1));
+		for(Int_t i1=0; i1<3*Ntr+3; i1++){
+			for(Int_t i2=0; i2<3*Ntr+3; i2++)rMbig(i1,i2) = Mbig(i1,i2)/(dd[i1]*dd[i2]);
+		}
+		delete [] dd;
+		//std::cout << "Big covariance rescaled:"; rMbig.Print();
+			
+		//Double_t Mass = 5.28;
+		//Double_t *masses = new Double_t[Ntr];
+		//for(Int_t im=0; im<Ntr; im++)masses[i] = 0.135;
+		//VM->MassConstraint(Mass, masses);
 		delete VM;
 		//
 		delete[] pg;

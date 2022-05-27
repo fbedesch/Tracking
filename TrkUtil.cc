@@ -322,6 +322,20 @@ TMatrixDSym TrkUtil::RegInv(TMatrixDSym& Min)
 {
 	TMatrixDSym M = Min;				// Decouple from input
 	Int_t N = M.GetNrows();			// Matrix size
+	//
+	// Deal with size 1 matrices
+	if(N == 1){
+		Double_t M00 = M(0,0);
+		TMatrixDSym Ret1(1);
+		if(M00 == 0.0){	
+			std::cout << "VertexFit::RegInv: null determinant for N = 1" << std::endl;
+			Ret1(0,0) = 0.;
+		}else{
+			Ret1(0,0) = 1./M00;
+		}
+		return Ret1;
+	}
+	//
 	TMatrixDSym D(N); D.Zero();		// Normaliztion matrix
 	TMatrixDSym R(N);				// Normarized matrix
 	TMatrixDSym Rinv(N);				// Inverse of R
