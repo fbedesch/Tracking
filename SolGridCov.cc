@@ -1,4 +1,4 @@
-﻿#include <TMath.h>
+#include <TMath.h>
 #include <TString.h>
 #include <TFile.h>
 #include <iostream>
@@ -269,7 +269,13 @@ TMatrixDSym SolGridCov::GetCov(Double_t pt, Double_t ang)
 	//
 	// Put ang in 0-90 range
 	ang = TMath::Abs(ang);
-	while (ang > 90.)ang -= 90.;	// Needs to be fixed
+  	if(ang > 180.){
+		std::cout<<"SolGridCov::GetCov: illegal polar angle "<<ang<<std::endl;
+		TMatrixDSym CvZero(5); CvZero.Zero();
+		return CvZero;
+  	}
+  	if(ang > 90.)ang = 180.-ang;	// Assume left right symmetry
+	//while (ang > 90.)ang -= 90.;	// Needs to be fixed
 	Int_t minAng = GetMinIndex(ang, fNang, fAnga);
 	if (minAng == -1)minAng = 0;
 	if (minAng == fNang - 1)minAng = fNang - 2;
